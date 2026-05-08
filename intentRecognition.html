@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Intent Recognition — Salesforce AI Chatbot</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #032d60 0%, #0176d3 60%, #1b96ff 100%);
+      color: #fff;
+      padding: 2.5rem 3rem;
+    }
+    header h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.4rem; letter-spacing: -0.02em; }
+    header p  { font-size: 1rem; opacity: 0.88; max-width: 640px; }
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 20px;
+      padding: 0.2rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-top: 0.75rem;
+      margin-right: 0.4rem;
+    }
+
+    .container { max-width: 1080px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+    section { margin-bottom: 3rem; }
+    h2 {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #032d60;
+      border-left: 4px solid #0176d3;
+      padding-left: 0.75rem;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.01em;
+    }
+    h3 { font-size: 0.95rem; font-weight: 700; color: #032d60; margin-bottom: 0.5rem; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e3e8ef;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    /* ── Key Point callout ── */
+    .callout {
+      background: linear-gradient(135deg, #e8f3fe 0%, #f0f7ff 100%);
+      border: 1px solid #b8d4f0;
+      border-left: 4px solid #0176d3;
+      border-radius: 0 10px 10px 0;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.92rem;
+    }
+    .callout strong { color: #032d60; }
+
+    /* ── Flow Diagram ── */
+    .diagram-wrap {
+      background: #fff;
+      border: 1px solid #e3e8ef;
+      border-radius: 12px;
+      padding: 2rem 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      overflow-x: auto;
+    }
+    .diagram-wrap svg { display: block; margin: 0 auto; }
+
+    /* ── Intent Grid ── */
+    .intent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 780px) { .intent-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 500px) { .intent-grid { grid-template-columns: 1fr; } }
+
+    .intent-card {
+      background: #fff;
+      border: 1px solid #e3e8ef;
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      border-top: 4px solid transparent;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .intent-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+
+    .intent-card.blue    { border-top-color: #0176d3; }
+    .intent-card.orange  { border-top-color: #e07b1a; }
+    .intent-card.purple  { border-top-color: #9854cb; }
+    .intent-card.green   { border-top-color: #2e844a; }
+    .intent-card.red     { border-top-color: #ba0517; }
+    .intent-card.grey    { border-top-color: #706e6b; }
+    .intent-card.teal    { border-top-color: #0e7c86; }
+    .intent-card.indigo  { border-top-color: #3a3ec8; }
+    .intent-card.navy    { border-top-color: #014486; }
+
+    .intent-pill {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 10px;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.6rem;
+    }
+    .pill-blue   { background: #e8f3fe; color: #0176d3; }
+    .pill-orange { background: #fef0e0; color: #a85500; }
+    .pill-purple { background: #f3e8ff; color: #9854cb; }
+    .pill-green  { background: #e8f7ee; color: #2e844a; }
+    .pill-red    { background: #fde8e8; color: #ba0517; }
+    .pill-grey   { background: #f3f3f3; color: #706e6b; }
+    .pill-teal   { background: #e0f5f5; color: #0e7c86; }
+    .pill-indigo { background: #eaebff; color: #3a3ec8; }
+    .pill-navy   { background: #e0eaf5; color: #014486; }
+
+    .intent-card h3 { font-size: 0.85rem; margin-bottom: 0.3rem; color: #1a1a2e; }
+    .intent-card p  { font-size: 0.78rem; color: #555; margin-bottom: 0.6rem; line-height: 1.5; }
+
+    .example-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip {
+      font-size: 0.68rem;
+      background: #f5f7fa;
+      border: 1px solid #dde3ed;
+      border-radius: 8px;
+      padding: 2px 8px;
+      color: #444;
+      font-style: italic;
+    }
+
+    /* ── How it works steps ── */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 0.9rem 0.75rem;
+      border-left: 2px solid #b8d4f0;
+      margin-left: 1rem;
+    }
+    .step:last-child { border-left-color: transparent; }
+    .step-num {
+      flex-shrink: 0;
+      width: 30px; height: 30px;
+      background: #0176d3;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; left: -16px; margin-right: -14px;
+    }
+    .step-body { padding-top: 3px; }
+    .step-body strong { display: block; font-size: 0.9rem; color: #032d60; margin-bottom: 2px; }
+    .step-body span   { font-size: 0.82rem; color: #555; }
+
+    /* ── Code block ── */
+    pre {
+      background: #0f1724;
+      color: #cdd6f4;
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+      font-size: 0.8rem;
+      line-height: 1.7;
+      overflow-x: auto;
+      margin-bottom: 0.75rem;
+    }
+    code { font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace; }
+    .kw  { color: #89b4fa; }
+    .str { color: #a6e3a1; }
+    .cm  { color: #6c7086; }
+    .key { color: #f38ba8; }
+    .val { color: #fab387; }
+
+    /* ── Example walkthrough ── */
+    .example-row {
+      display: grid;
+      grid-template-columns: 1fr 40px 1fr 40px 1fr;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    @media (max-width: 600px) {
+      .example-row { grid-template-columns: 1fr; }
+      .arrow-cell { text-align: center; }
+    }
+    .ex-box {
+      background: #f5f7fa;
+      border: 1px solid #dde3ed;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+    }
+    .ex-box .label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #888; margin-bottom: 0.3rem; }
+    .ex-box .value { color: #032d60; font-weight: 600; }
+    .ex-box.highlight { background: linear-gradient(135deg, #e8f3fe, #f0f7ff); border-color: #b8d4f0; }
+    .arrow-cell { text-align: center; font-size: 1.2rem; color: #0176d3; font-weight: 700; }
+
+    /* ── Two col ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── Badge demo ── */
+    .badge-demo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 1rem;
+      background: #f5f7fa;
+      border-radius: 8px;
+      margin-top: 0.75rem;
+    }
+    .db { font-size: 0.7rem; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
+
+    footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #888;
+      padding: 2rem 1rem;
+      border-top: 1px solid #e3e8ef;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Intent Recognition</h1>
+  <p>How the Salesforce AI Chatbot understands what users want and selects the right visual response — powered by GPT-4o's structured JSON output.</p>
+  <div>
+    <span class="badge">GPT-4o</span>
+    <span class="badge">9 Intent Types</span>
+    <span class="badge">Salesforce LWC</span>
+    <span class="badge">Structured JSON</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── WHAT IS INTENT RECOGNITION ── -->
+  <section>
+    <h2>What is Intent Recognition?</h2>
+    <div class="callout">
+      <strong>Key insight:</strong> In this chatbot, GPT-4o acts as <em>both</em> the intent classifier <em>and</em> the response generator in a single API call. There is no separate NLP pipeline — the LLM reads the user's message alongside strict schema rules and returns a typed JSON object where <code>responseType</code> <em>is</em> the intent.
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>Traditional Approach</h3>
+        <p style="font-size:0.85rem;color:#555;margin-bottom:0.75rem">Two separate steps — classify first, then generate.</p>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><strong>NLP Classifier</strong><span>Regex / ML model identifies intent ("summarize", "create", "chart"…)</span></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Response Generator</strong><span>Separate LLM call generates the actual response content</span></div></div>
+          <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Renderer</strong><span>UI picks a component based on the classified intent</span></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>This Chatbot's Approach</h3>
+        <p style="font-size:0.85rem;color:#555;margin-bottom:0.75rem">One call — classify and generate together.</p>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Single GPT-4o Call</strong><span>System prompt enforces <code>response_format: json_object</code> with 9 typed schemas</span></div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-body"><strong>JSON Response</strong><span>LLM returns <code>responseType</code> (the intent) + all data in one structured object</span></div></div>
+          <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Renderer</strong><span>LWC routes to the correct visual component by <code>responseType</code></span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ARCHITECTURE FLOW ── -->
+  <section>
+    <h2>End-to-End Flow</h2>
+    <div class="diagram-wrap">
+      <svg width="940" height="500" viewBox="0 0 940 500" xmlns="http://www.w3.org/2000/svg"
+           font-family="'Segoe UI', system-ui, sans-serif">
+
+        <!-- Background lanes -->
+        <rect x="10"  y="50" width="180" height="430" rx="10" fill="#f0f7ff" stroke="#b8d4f0" stroke-width="1.2"/>
+        <rect x="205" y="50" width="200" height="430" rx="10" fill="#f5fff0" stroke="#b3dcaa" stroke-width="1.2"/>
+        <rect x="420" y="50" width="200" height="430" rx="10" fill="#fef8f0" stroke="#f0c896" stroke-width="1.2"/>
+        <rect x="635" y="50" width="295" height="430" rx="10" fill="#f8f0fe" stroke="#d4b0f0" stroke-width="1.2"/>
+
+        <!-- Lane labels -->
+        <text x="100"  y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#0176d3">SALESFORCE LWC</text>
+        <text x="305"  y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#2e844a">APEX LAYER</text>
+        <text x="520"  y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#a85500">OPENAI GPT-4o</text>
+        <text x="782"  y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#9854cb">INTENT → COMPONENT</text>
+
+        <!-- LWC boxes -->
+        <rect x="25"  y="90"  width="150" height="46" rx="7" fill="#0176d3"/>
+        <text x="100" y="110" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">lnchatInput</text>
+        <text x="100" y="126" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,0.85)">User types message</text>
+
+        <rect x="25"  y="165" width="150" height="46" rx="7" fill="#014486"/>
+        <text x="100" y="185" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">lnchatShell</text>
+        <text x="100" y="201" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,0.85)">sendMessage()</text>
+
+        <rect x="25"  y="395" width="150" height="46" rx="7" fill="#1b5faa"/>
+        <text x="100" y="415" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">lnchatHistory</text>
+        <text x="100" y="431" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,0.85)">Renders messages</text>
+
+        <!-- Apex boxes -->
+        <rect x="220" y="90"  width="170" height="46" rx="7" fill="#2e844a"/>
+        <text x="305" y="110" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">LNChatController</text>
+        <text x="305" y="126" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,0.85)">@AuraEnabled entry point</text>
+
+        <rect x="220" y="163" width="170" height="46" rx="7" fill="#3d9e1f"/>
+        <text x="305" y="183" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ContextBuilder</text>
+        <text x="305" y="199" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,0.85)">SF + ERP + BI context</text>
+
+        <rect x="220" y="237" width="170" height="46" rx="7" fill="#145c02"/>
+        <text x="305" y="257" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">LNChatLLMService</text>
+        <text x="305" y="273" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,0.85)">Builds prompt + calls API</text>
+
+        <rect x="220" y="311" width="170" height="46" rx="7" fill="#2e844a"/>
+        <text x="305" y="331" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">LNChatResponseDTO</text>
+        <text x="305" y="347" text-anchor="middle" font-size="9.5" fill="rgba(255,255,255,0.85)">Parses JSON → DTO</text>
+
+        <!-- OpenAI box -->
+        <rect x="435" y="163" width="170" height="120" rx="7" fill="#e07b1a"/>
+        <text x="520" y="187" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">GPT-4o</text>
+        <text x="520" y="205" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">System prompt: 9 schemas</text>
+        <text x="520" y="220" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">+ 14 rules</text>
+        <text x="520" y="240" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">response_format:</text>
+        <text x="520" y="255" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff">json_object</text>
+        <text x="520" y="273" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">→ responseType = intent</text>
+
+        <!-- Intent → Component boxes -->
+        <rect x="650" y="90"  width="265" height="36" rx="6" fill="#0176d3"/>
+        <text x="782" y="113" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">record_summary → lnchatRecordSummary</text>
+
+        <rect x="650" y="134" width="265" height="36" rx="6" fill="#e07b1a"/>
+        <text x="782" y="157" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">record_action → lnchatRecordActionCard</text>
+
+        <rect x="650" y="178" width="265" height="36" rx="6" fill="#9854cb"/>
+        <text x="782" y="201" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">kpi_cards → lnchatKpiCardGrid</text>
+
+        <rect x="650" y="222" width="265" height="36" rx="6" fill="#2e844a"/>
+        <text x="782" y="245" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">chart → lnchatChartWidget</text>
+
+        <rect x="650" y="266" width="265" height="36" rx="6" fill="#ba0517"/>
+        <text x="782" y="289" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">alert → lnchatAlertBanner</text>
+
+        <rect x="650" y="310" width="265" height="36" rx="6" fill="#0e7c86"/>
+        <text x="782" y="333" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">timeline → lnchatTimelineView</text>
+
+        <rect x="650" y="354" width="265" height="36" rx="6" fill="#3a3ec8"/>
+        <text x="782" y="377" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">comparison → lnchatComparisonTable</text>
+
+        <rect x="650" y="398" width="265" height="36" rx="6" fill="#014486"/>
+        <text x="782" y="421" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">table → lnchatTableView</text>
+
+        <rect x="650" y="442" width="265" height="36" rx="6" fill="#706e6b"/>
+        <text x="782" y="465" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">summary → inline sections</text>
+
+        <!-- Arrows LWC -->
+        <line x1="100" y1="136" x2="100" y2="165" stroke="#0176d3" stroke-width="1.8" marker-end="url(#ab)"/>
+        <line x1="175" y1="188" x2="220" y2="113" stroke="#0176d3" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#ab)"/>
+        <text x="190" y="143" font-size="9" fill="#0176d3" font-weight="600">Apex call</text>
+
+        <!-- Arrows Apex -->
+        <line x1="305" y1="136" x2="305" y2="163" stroke="#2e844a" stroke-width="1.8" marker-end="url(#ag)"/>
+        <line x1="305" y1="209" x2="305" y2="237" stroke="#2e844a" stroke-width="1.8" marker-end="url(#ag)"/>
+        <line x1="390" y1="260" x2="435" y2="223" stroke="#e07b1a" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#ao)"/>
+        <text x="398" y="248" font-size="9" fill="#a85500" font-weight="600">HTTP</text>
+        <line x1="435" y1="245" x2="390" y2="290" stroke="#e07b1a" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#ag2)"/>
+        <text x="396" y="278" font-size="9" fill="#a85500" font-weight="600">JSON</text>
+        <line x1="305" y1="283" x2="305" y2="311" stroke="#2e844a" stroke-width="1.8" marker-end="url(#ag)"/>
+
+        <!-- Arrow Apex → LWC return -->
+        <line x1="220" y1="334" x2="175" y2="415" stroke="#2e844a" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#ab)"/>
+
+        <!-- Arrow DTO → Renderer (right) -->
+        <line x1="390" y1="334" x2="650" y2="260" stroke="#9854cb" stroke-width="1.8" stroke-dasharray="4,3" marker-end="url(#ap)"/>
+        <text x="490" y="310" font-size="9" fill="#9854cb" font-weight="600">responseType</text>
+
+        <!-- Arrow markers -->
+        <defs>
+          <marker id="ab" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#0176d3"/>
+          </marker>
+          <marker id="ag" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#2e844a"/>
+          </marker>
+          <marker id="ag2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#2e844a"/>
+          </marker>
+          <marker id="ao" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#e07b1a"/>
+          </marker>
+          <marker id="ap" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#9854cb"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ── 9 INTENT TYPES ── -->
+  <section>
+    <h2>The 9 Intent Types</h2>
+    <p style="font-size:0.88rem;color:#555;margin-bottom:1.25rem">GPT-4o selects one of these schemas based on the user's message. Each maps directly to a dedicated LWC visual component.</p>
+    <div class="intent-grid">
+
+      <div class="intent-card blue">
+        <span class="intent-pill pill-blue">record_summary</span>
+        <h3>Record Summary</h3>
+        <p>Rich overview of the current record — header, KPI bar, and related-record sections with clickable links.</p>
+        <div class="example-chips">
+          <span class="chip">"Summarize this account"</span>
+          <span class="chip">"Give me an overview"</span>
+          <span class="chip">"Review this record"</span>
+        </div>
+      </div>
+
+      <div class="intent-card orange">
+        <span class="intent-pill pill-orange">record_action</span>
+        <h3>Record Action</h3>
+        <p>Creates or updates a Salesforce record. Renders a confirmation card with field table before executing DML.</p>
+        <div class="example-chips">
+          <span class="chip">"Create a follow-up task"</span>
+          <span class="chip">"Update the phone number"</span>
+          <span class="chip">"Add a new contact"</span>
+        </div>
+      </div>
+
+      <div class="intent-card purple">
+        <span class="intent-pill pill-purple">kpi_cards</span>
+        <h3>KPI Cards</h3>
+        <p>Metric tiles with trend indicators, icons, and directional arrows. Used for counts, amounts, and performance numbers.</p>
+        <div class="example-chips">
+          <span class="chip">"Show me the metrics"</span>
+          <span class="chip">"How many open opps?"</span>
+          <span class="chip">"What's the pipeline value?"</span>
+        </div>
+      </div>
+
+      <div class="intent-card green">
+        <span class="intent-pill pill-green">chart</span>
+        <h3>Chart</h3>
+        <p>Bar, line, or donut chart rendered with Chart.js. Used for trends over time and distributions.</p>
+        <div class="example-chips">
+          <span class="chip">"Show revenue trend"</span>
+          <span class="chip">"Chart monthly activity"</span>
+          <span class="chip">"Opportunity stage breakdown"</span>
+        </div>
+      </div>
+
+      <div class="intent-card red">
+        <span class="intent-pill pill-red">alert</span>
+        <h3>Alert</h3>
+        <p>Severity-based banner (critical / warning / info / success). Used for risks, anomalies, and action feedback.</p>
+        <div class="example-chips">
+          <span class="chip">"What are the risks?"</span>
+          <span class="chip">"Any issues I should know?"</span>
+          <span class="chip">"Is anything overdue?"</span>
+        </div>
+      </div>
+
+      <div class="intent-card teal">
+        <span class="intent-pill pill-teal">timeline</span>
+        <h3>Timeline</h3>
+        <p>Chronological event list with status badges and type icons. Used for activity history and project phases.</p>
+        <div class="example-chips">
+          <span class="chip">"Show activity history"</span>
+          <span class="chip">"What happened recently?"</span>
+          <span class="chip">"Key milestones"</span>
+        </div>
+      </div>
+
+      <div class="intent-card indigo">
+        <span class="intent-pill pill-indigo">comparison</span>
+        <h3>Comparison Table</h3>
+        <p>Side-by-side table of Salesforce values vs external system (ERP/BI). Highlights discrepancies.</p>
+        <div class="example-chips">
+          <span class="chip">"Compare SF vs ERP data"</span>
+          <span class="chip">"What's different in BI?"</span>
+          <span class="chip">"Data discrepancies"</span>
+        </div>
+      </div>
+
+      <div class="intent-card navy">
+        <span class="intent-pill pill-navy">table</span>
+        <h3>Table</h3>
+        <p>Sortable multi-column data table. Used for pricing, SKU lists, schedules, and any structured tabular data.</p>
+        <div class="example-chips">
+          <span class="chip">"Show pricing table"</span>
+          <span class="chip">"List all line items"</span>
+          <span class="chip">"Product catalog"</span>
+        </div>
+      </div>
+
+      <div class="intent-card grey">
+        <span class="intent-pill pill-grey">summary</span>
+        <h3>Summary</h3>
+        <p>Narrative answer with headed sections and color-coded badges. The fallback intent for open-ended questions.</p>
+        <div class="example-chips">
+          <span class="chip">"Tell me about this account"</span>
+          <span class="chip">"Explain the situation"</span>
+          <span class="chip">"What do you know about…"</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── HOW GPT-4o DECIDES ── -->
+  <section>
+    <h2>How GPT-4o Decides the Intent</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>1 — Strict Schema Enforcement</h3>
+        <p style="font-size:0.83rem;color:#555;margin-bottom:0.75rem">The API call includes <code>response_format: json_object</code>, forcing GPT-4o to return only valid JSON.</p>
+        <pre><code><span class="cm">// LNChatLLMService.cls</span>
+<span class="kw">Map</span>&lt;String, Object&gt; requestBody =
+  <span class="kw">new</span> Map&lt;String, Object&gt;{
+    <span class="str">'model'</span>    => modelName,
+    <span class="str">'messages'</span> => messages,
+    <span class="str">'response_format'</span> =>
+      <span class="kw">new</span> Map&lt;String, String&gt;{
+        <span class="str">'type'</span> => <span class="str">'json_object'</span>
+      }
+  };</code></pre>
+      </div>
+      <div class="card">
+        <h3>2 — Schema Selection Rules in System Prompt</h3>
+        <p style="font-size:0.83rem;color:#555;margin-bottom:0.75rem">Key rules that drive intent selection:</p>
+        <div class="steps">
+          <div class="step"><div class="step-num" style="background:#e07b1a">R8</div><div class="step-body"><strong>record_action is mandatory for create/update</strong><span>Never tell the user to do it manually.</span></div></div>
+          <div class="step"><div class="step-num" style="background:#0176d3">R13</div><div class="step-body"><strong>record_summary is mandatory for "summarize"</strong><span>Always use Schema 7 for overview requests.</span></div></div>
+          <div class="step"><div class="step-num" style="background:#706e6b">R1</div><div class="step-body"><strong>Never default to summary</strong><span>When numbers, trends, or timelines are present, pick the richer type.</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EXAMPLE WALKTHROUGH ── -->
+  <section>
+    <h2>Live Example Walkthroughs</h2>
+    <div class="card">
+
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"Summarize this record"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#0176d3">responseType: "record_summary"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatRecordSummary</div>
+        </div>
+      </div>
+
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"Create a follow-up task for next week"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#a85500">responseType: "record_action"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatRecordActionCard</div>
+        </div>
+      </div>
+
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"Show revenue trend for last 6 months"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#2e844a">responseType: "chart"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatChartWidget</div>
+        </div>
+      </div>
+
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"What are the risks with this account?"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#ba0517">responseType: "alert"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatAlertBanner</div>
+        </div>
+      </div>
+
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"How many open opps, cases, and contacts?"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#9854cb">responseType: "kpi_cards"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatKpiCardGrid</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── INTENT BADGE FEATURE ── -->
+  <section>
+    <h2>Observability — Intent Badge</h2>
+    <div class="card">
+      <p style="font-size:0.88rem;color:#555;margin-bottom:1rem">A debug feature built into the chatbot. Enable it in Lightning App Builder to see the detected intent on every AI response in real time.</p>
+      <div class="two-col">
+        <div>
+          <h3 style="margin-bottom:0.5rem">How to enable</h3>
+          <div class="steps">
+            <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Open App Builder</strong><span>Navigate to any record → gear → Edit Page</span></div></div>
+            <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Select the component</strong><span>Click <code>lnchat Drawer</code> or <code>lnchat Shell</code></span></div></div>
+            <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Check the toggle</strong><span>☑ Show Intent Badge → Save → Activate</span></div></div>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-bottom:0.5rem">Badge appearance</h3>
+          <p style="font-size:0.82rem;color:#555;margin-bottom:0.5rem">Each AI response shows a colour-coded pill in the bottom-left corner:</p>
+          <div class="badge-demo">
+            <span class="db" style="background:#e8f3fe;color:#0176d3">record_summary</span>
+            <span class="db" style="background:#fef0e0;color:#a85500">record_action</span>
+            <span class="db" style="background:#f3e8ff;color:#9854cb">kpi_cards</span>
+            <span class="db" style="background:#e8f7ee;color:#2e844a">chart</span>
+            <span class="db" style="background:#fde8e8;color:#ba0517">alert</span>
+            <span class="db" style="background:#e0f5f5;color:#0e7c86">timeline</span>
+            <span class="db" style="background:#eaebff;color:#3a3ec8">comparison</span>
+            <span class="db" style="background:#e0eaf5;color:#014486">table</span>
+            <span class="db" style="background:#f3f3f3;color:#706e6b">summary</span>
+          </div>
+          <p style="font-size:0.78rem;color:#888;margin-top:0.75rem">Uncheck in App Builder to hide. No redeployment needed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── WHAT CONTEXT LLM USES ── -->
+  <section>
+    <h2>What Context the LLM Uses to Decide</h2>
+    <div class="card">
+      <p style="font-size:0.88rem;color:#555;margin-bottom:1rem">Every API call to GPT-4o includes the following in the system prompt:</p>
+      <div class="two-col">
+        <div>
+          <h3 style="margin-bottom:0.6rem">Input to GPT-4o</h3>
+          <div class="steps">
+            <div class="step"><div class="step-num" style="background:#032d60">1</div><div class="step-body"><strong>System Prompt</strong><span>9 JSON schemas, 14 selection rules, field API name lists, auto-association rules</span></div></div>
+            <div class="step"><div class="step-num" style="background:#032d60">2</div><div class="step-body"><strong>Salesforce Record Context</strong><span>All field values + related records (Contacts, Opps, Cases, Tasks, Quotes, Orders, Contracts)</span></div></div>
+            <div class="step"><div class="step-num" style="background:#032d60">3</div><div class="step-body"><strong>External Data</strong><span>ERP record data + BI metrics (revenue, pipeline, activity)</span></div></div>
+            <div class="step"><div class="step-num" style="background:#032d60">4</div><div class="step-body"><strong>Conversation History</strong><span>Last 10 messages for multi-turn context awareness</span></div></div>
+            <div class="step"><div class="step-num" style="background:#032d60">5</div><div class="step-body"><strong>User Message</strong><span>Current user input (text + optional file attachment)</span></div></div>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-bottom:0.6rem">GPT-4o JSON Output</h3>
+          <pre><code>{
+  <span class="key">"responseType"</span>: <span class="str">"record_summary"</span>,
+  <span class="key">"title"</span>: <span class="str">"Test Chat"</span>,
+  <span class="key">"summary"</span>: <span class="str">"Technology company in New York..."</span>,
+  <span class="key">"data"</span>: {
+    <span class="key">"header"</span>: { ... },
+    <span class="key">"kpis"</span>: [ ... ],
+    <span class="key">"sections"</span>: [ ... ]
+  },
+  <span class="key">"actions"</span>: []
+}</code></pre>
+          <p style="font-size:0.78rem;color:#555">The <code style="color:#0176d3">responseType</code> field is the intent. Everything else is the structured response data for that intent's visual component.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Generated by Claude Code &nbsp;·&nbsp; GPTLMTH52 Salesforce AI Chatbot &nbsp;·&nbsp; 2026
+</footer>
+
+</body>
+</html>

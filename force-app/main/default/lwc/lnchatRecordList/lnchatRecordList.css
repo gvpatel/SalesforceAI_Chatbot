@@ -1,0 +1,74 @@
+.record-list-container {
+    width: 100%;
+    overflow-x: auto;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.loading-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 0;
+    color: #706e6b;
+    font-size: 0.8125rem;
+}
+
+.loading-text {
+    font-size: 0.8125rem;
+    color: #706e6b;
+}
+
+.result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #0176d3;
+    background: none;
+    border: 1px solid #0176d3;
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    line-height: 1.5;
+}
+
+.export-btn:hover {
+    background: #e8f3fe;
+}
+
+.export-icon {
+    --sds-c-icon-color-foreground-default: #0176d3;
+}
+
+.result-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #706e6b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.error-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0;
+    color: #ba0517;
+    font-size: 0.8125rem;
+}
+
+.no-results {
+    font-size: 0.8125rem;
+    color: #706e6b;
+    padding: 0.5rem 0;
+    font-style: italic;
+}

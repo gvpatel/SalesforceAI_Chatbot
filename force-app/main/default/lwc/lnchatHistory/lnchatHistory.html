@@ -1,0 +1,99 @@
+<template>
+    <div class="history-scroll" lwc:ref="scrollContainer">
+        <template if:true={isEmpty}>
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <lightning-icon icon-name="utility:einstein" size="large" class="einstein-icon"></lightning-icon>
+                </div>
+                <h4 class="empty-title">Hi, I'm your AI Assistant</h4>
+                <p class="empty-subtitle">I can help you analyze this record, surface insights, and take action. Ask me anything or choose a suggestion below.</p>
+            </div>
+        </template>
+
+        <template for:each={messages} for:item="message">
+            <div key={message.id} class={message.wrapClass}>
+
+                <!-- User message bubble -->
+                <template if:true={message.isUser}>
+                    <div class="message-bubble user-bubble">
+                        <template if:true={message.displayContent}>
+                            <span class="bubble-text">{message.displayContent}</span>
+                        </template>
+                        <template if:true={message.hasAttachment}>
+                            <div class="attachment-pill">
+                                <lightning-icon icon-name="utility:attach" size="xx-small" variant="inverse" class="attach-pill-icon"></lightning-icon>
+                                <span class="attach-pill-name">{message.attachmentName}</span>
+                            </div>
+                        </template>
+                        <span class="message-time">{message.relativeTime}</span>
+                    </div>
+                </template>
+
+                <!-- Assistant message card -->
+                <template if:false={message.isUser}>
+                    <div class="assistant-card">
+                        <div class="assistant-avatar">
+                            <lightning-icon icon-name="utility:einstein" size="x-small" variant="inverse" class="avatar-icon"></lightning-icon>
+                        </div>
+                        <div class="assistant-content">
+                            <c-lnchat-response-renderer
+                                response-type={message.responseType}
+                                title={message.parsedTitle}
+                                summary={message.parsedSummary}
+                                data={message.parsedData}
+                                actions={message.parsedActions}
+                                record-id={recordId}
+                            ></c-lnchat-response-renderer>
+                            <div class="message-footer">
+                                <template if:true={showIntentBadge}>
+                                    <span class={message.intentBadgeClass}>{message.responseType}</span>
+                                </template>
+                                <div class="footer-right">
+                                    <button class="email-icon-btn" data-msg-id={message.id} onclick={handleEmailIconClick} title="Email this response">
+                                        <lightning-icon icon-name="utility:email" size="xx-small" class="email-icon"></lightning-icon>
+                                    </button>
+                                    <span class="message-time">{message.relativeTime}</span>
+                                </div>
+                            </div>
+                            <template if:true={message.showEmailOverlay}>
+                                <div class="email-overlay">
+                                    <span class="email-overlay-label">Email to:</span>
+                                    <input type="email" class="email-input" placeholder="colleague@company.com"
+                                           value={emailAddress} oninput={handleEmailAddressChange}
+                                           onkeydown={handleEmailKeydown} data-msg-id={message.id} />
+                                    <button class="email-send-btn" onclick={handleEmailSend}
+                                            data-msg-id={message.id} disabled={isSendingEmail}>
+                                        <template if:true={isSendingEmail}>Sending...</template>
+                                        <template if:false={isSendingEmail}>Send</template>
+                                    </button>
+                                    <button class="email-cancel-btn" onclick={handleEmailCancel} data-msg-id={message.id}>Cancel</button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+            </div>
+        </template>
+
+        <!-- Typing indicator -->
+        <template if:true={isTyping}>
+            <div class="message-wrap assistant-wrap">
+                <div class="assistant-card">
+                    <div class="assistant-avatar">
+                        <lightning-icon icon-name="utility:einstein" size="x-small" class="avatar-icon"></lightning-icon>
+                    </div>
+                    <div class="assistant-content">
+                        <div class="typing-indicator">
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <div class="scroll-anchor" lwc:ref="scrollAnchor"></div>
+    </div>
+</template>

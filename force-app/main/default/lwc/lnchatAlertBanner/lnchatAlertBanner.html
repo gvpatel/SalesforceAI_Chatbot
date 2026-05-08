@@ -1,0 +1,63 @@
+<template>
+    <div class={bannerClass} role="alert">
+        <div class="banner-header" onclick={toggleExpanded}>
+            <div class="banner-icon-title">
+                <lightning-icon
+                    icon-name={severityIcon}
+                    size="small"
+                    class="banner-icon"
+                ></lightning-icon>
+                <span class="banner-title">{alertTitle}</span>
+            </div>
+            <div class="banner-controls">
+                <template if:true={hasDetails}>
+                    <button
+                        class="expand-btn"
+                        onclick={toggleExpanded}
+                        aria-label="Toggle details"
+                        aria-expanded={isExpanded}
+                    >
+                        <lightning-icon
+                            icon-name={expandIcon}
+                            size="xx-small"
+                        ></lightning-icon>
+                    </button>
+                </template>
+                <template if:false={allowBypass}>
+                    <button
+                        class="dismiss-btn"
+                        onclick={handleDismiss}
+                        aria-label="Dismiss alert"
+                    >
+                        <lightning-icon icon-name="utility:close" size="xx-small"></lightning-icon>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <p class="banner-message">{message}</p>
+
+        <template if:true={isExpanded}>
+            <ul class="banner-details">
+                <template for:each={details} for:item="detail">
+                    <li key={detail} class="banner-detail-item">
+                        <lightning-icon
+                            icon-name="utility:chevronright"
+                            size="xx-small"
+                            class="detail-icon"
+                        ></lightning-icon>
+                        {detail}
+                    </li>
+                </template>
+            </ul>
+        </template>
+
+        <!-- Bypass confirmation buttons shown only for duplicate warnings -->
+        <template if:true={allowBypass}>
+            <div class="bypass-row">
+                <button class="bypass-proceed-btn" onclick={handleProceed}>Proceed Anyway</button>
+                <button class="bypass-cancel-btn" onclick={handleBypassCancel}>Cancel</button>
+            </div>
+        </template>
+    </div>
+</template>

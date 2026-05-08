@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Utility Bar for the AI Assistant app — includes the AI chatbot panel.</description>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentInstanceProperties>
+                    <name>label</name>
+                    <value>AI Assistant</value>
+                </componentInstanceProperties>
+                <componentName>c:chatbotShell</componentName>
+                <identifier>c_chatbotShell</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>utilityItems</name>
+        <type>Region</type>
+    </flexiPageRegions>
+    <masterLabel>AI Assistant Utility Bar</masterLabel>
+    <template>
+        <name>one:utilityBarTemplateDesktop</name>
+    </template>
+    <type>UtilityBar</type>
+</FlexiPage>

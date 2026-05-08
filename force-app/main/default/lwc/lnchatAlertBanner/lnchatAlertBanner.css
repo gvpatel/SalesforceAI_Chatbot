@@ -1,0 +1,166 @@
+.alert-banner {
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+    font-family: var(--lwc-fontFamily, 'Salesforce Sans', Arial, sans-serif);
+    transition: all 0.3s ease;
+}
+
+.alert-critical {
+    background-color: #fef0f0;
+    border-left: 4px solid #ba0517;
+    color: #580010;
+}
+
+.alert-warning {
+    background-color: #fff8f0;
+    border-left: 4px solid #fe9339;
+    color: #663300;
+}
+
+.alert-info {
+    background-color: #f0f6ff;
+    border-left: 4px solid #0176d3;
+    color: #032d60;
+}
+
+.alert-success {
+    background-color: #f0fff4;
+    border-left: 4px solid #2e844a;
+    color: #0d3e20;
+}
+
+.banner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.banner-icon-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.banner-title {
+    font-weight: 700;
+    font-size: 0.875rem;
+    letter-spacing: 0.01em;
+}
+
+.banner-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.expand-btn,
+.dismiss-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.expand-btn:hover,
+.dismiss-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.banner-message {
+    margin: 0;
+    padding: 0 1rem 0.75rem 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.banner-details {
+    list-style: none;
+    margin: 0;
+    padding: 0 1rem 0.75rem 1rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.banner-detail-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.375rem;
+    padding: 0.375rem 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.detail-icon {
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    opacity: 0.7;
+}
+
+.alert-critical .banner-icon {
+    --sds-c-icon-color-foreground-default: #ba0517;
+}
+
+.alert-warning .banner-icon {
+    --sds-c-icon-color-foreground-default: #fe9339;
+}
+
+.alert-info .banner-icon {
+    --sds-c-icon-color-foreground-default: #0176d3;
+}
+
+.alert-success .banner-icon {
+    --sds-c-icon-color-foreground-default: #2e844a;
+}
+
+/* Bypass (Proceed Anyway) row */
+.bypass-row {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.bypass-proceed-btn {
+    padding: 0.375rem 0.875rem;
+    background: #fe9339;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--lwc-fontFamily, 'Salesforce Sans', Arial, sans-serif);
+    transition: background 0.2s ease;
+}
+
+.bypass-proceed-btn:hover {
+    background: #e07420;
+}
+
+.bypass-cancel-btn {
+    padding: 0.375rem 0.875rem;
+    background: transparent;
+    color: #663300;
+    border: 1.5px solid #fe9339;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--lwc-fontFamily, 'Salesforce Sans', Arial, sans-serif);
+    transition: background 0.2s ease;
+}
+
+.bypass-cancel-btn:hover {
+    background: rgba(254, 147, 57, 0.1);
+}

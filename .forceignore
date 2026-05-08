@@ -1,0 +1,21 @@
+# List files or directories below to ignore them when running force:source:push, force:source:pull, and force:source:status
+# More information: https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_exclude_source.htm
+#
+
+package.xml
+
+# LWC configuration files
+**/jsconfig.json
+**/.eslintrc.json
+
+# LWC Jest
+**/__tests__/**
+
+node_modules/
+
+# Utility bar FlexiPage and App must be configured via Setup UI (CLI deploy not supported for LWC utility bar items)
+**/flexipages/AI_Assistant_UtilityBar.flexipage-meta.xml
+**/applications/AI_Assistant.app-meta.xml
+
+# Custom Metadata record — contains real API key set via Setup UI; never overwrite via CLI deploy
+**/customMetadata/AI_Config.Default.md-meta.xml

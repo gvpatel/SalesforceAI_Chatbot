@@ -1,0 +1,22 @@
+<template>
+    <div class="chart-container">
+        <template if:true={title}>
+            <h4 class="chart-title">{title}</h4>
+        </template>
+        <div class="canvas-wrapper">
+            <canvas class="chart-canvas" lwc:ref="chartCanvas"></canvas>
+        </div>
+        <template if:true={isLoading}>
+            <div class="chart-loading">
+                <div class="loading-spinner"></div>
+                <span>Loading chart...</span>
+            </div>
+        </template>
+        <template if:true={hasError}>
+            <div class="chart-error">
+                <lightning-icon icon-name="utility:error" size="small"></lightning-icon>
+                <span>Unable to render chart</span>
+            </div>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,34 @@
+<template>
+    <div class="kpi-grid">
+        <template for:each={cards} for:item="card">
+            <div key={card.label} class="kpi-card" data-label={card.label}>
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrap">
+                        <lightning-icon
+                            icon-name={card.iconName}
+                            size="small"
+                            class="kpi-icon"
+                        ></lightning-icon>
+                    </div>
+                    <template if:true={card.hasTrend}>
+                        <span class={card.trendClass}>
+                            <lightning-icon
+                                icon-name={card.trendIcon}
+                                size="xx-small"
+                                class="trend-icon"
+                            ></lightning-icon>
+                            {card.trend}
+                        </span>
+                    </template>
+                </div>
+                <div class="kpi-value-row">
+                    <span class="kpi-value" data-target={card.numericValue}>{card.displayValue}</span>
+                    <template if:true={card.unit}>
+                        <span class="kpi-unit">{card.unit}</span>
+                    </template>
+                </div>
+                <p class="kpi-label">{card.label}</p>
+            </div>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,68 @@
+<template>
+    <div class={panelClass}>
+        <!-- Header -->
+        <div class="panel-header">
+            <div class="header-left">
+                <div class="bot-avatar">
+                    <lightning-icon icon-name="utility:einstein" size="small" variant="inverse" class="bot-icon"></lightning-icon>
+                </div>
+                <div class="header-titles">
+                    <span class="header-title">AI Assistant</span>
+                    <template if:true={hasRecord}>
+                        <span class="header-subtitle">{contextLabel}</span>
+                    </template>
+                    <template if:false={hasRecord}>
+                        <span class="header-subtitle">Ask me anything</span>
+                    </template>
+                </div>
+            </div>
+            <div class="header-controls">
+                <template if:true={isLoading}>
+                    <div class="header-thinking">
+                        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                    </div>
+                </template>
+                <button
+                    class="header-btn"
+                    onclick={handleClearHistory}
+                    title="Clear conversation"
+                    aria-label="Clear conversation history"
+                >
+                    <lightning-icon icon-name="utility:delete" size="xx-small"></lightning-icon>
+                </button>
+                <template if:false={isSidebar}>
+                    <template if:false={isDrawer}>
+                        <button
+                            class="header-btn"
+                            onclick={handleMinimize}
+                            title="Minimize"
+                            aria-label="Minimize panel"
+                        >
+                            <lightning-icon icon-name="utility:minimize_window" size="xx-small"></lightning-icon>
+                        </button>
+                    </template>
+                </template>
+            </div>
+        </div>
+
+        <!-- Body: conversation history -->
+        <c-lnchat-history
+            record-id={recordId}
+            is-typing={isLoading}
+            show-intent-badge={showIntentBadge}
+            onrecordactionconfirm={handleRecordActionConfirm}
+            onrecordactioncancel={handleRecordActionCancel}
+            onrecordnavigate={handleRecordNavigate}
+            onalertproceed={handleAlertProceed}
+            onalertcancel={handleAlertCancel}
+            onshowtoast={handleShowToast}
+        ></c-lnchat-history>
+
+        <!-- Footer: input -->
+        <c-lnchat-input
+            is-loading={isLoading}
+            onmessagesend={handleMessageSend}
+            onattacherror={handleAttachError}
+        ></c-lnchat-input>
+    </div>
+</template>

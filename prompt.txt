@@ -1,0 +1,3079 @@
+================================================================================
+SALESFORCE AI CHATBOT — COMPLETE IMPLEMENTATION PROMPT
+================================================================================
+
+Build a production-ready AI-powered chatbot for Salesforce. The chatbot lives
+in a floating drawer panel on any Lightning page (FAB that slides open a full-
+height drawer). When a user navigates to a record page, the chatbot automatically
+detects the record context, queries Salesforce data + external systems (ERP, BI),
+and sends everything to OpenAI GPT-4o. The LLM returns typed structured JSON
+that the LWC renders as rich visual components: KPI cards, charts, comparison
+tables, timelines, alerts, rich record summaries, and create/update confirmation
+cards.
+
+================================================================================
+TECH STACK
+================================================================================
+- Salesforce LWC (API version 62.0)
+- Apex (with sharing, API 62.0)
+- OpenAI GPT-4o via Named Credential
+- Chart.js v4.4.0 (Static Resource)
+- Custom Objects: LNChatSession__c, LNChatMessage__c
+- Custom Metadata: AI_Config__mdt (stores API key, model, max tokens)
+- Remote Site Settings: https://api.openai.com, https://your-erp-system.com,
+  https://your-bi-system.com
+
+================================================================================
+PROJECT STRUCTURE
+================================================================================
+
+force-app/main/default/
+├── applications/
+│   └── AI_Assistant.app-meta.xml
+├── classes/
+│   ├── LNChatController.cls + .cls-meta.xml
+│   ├── LNChatControllerTest.cls + .cls-meta.xml
+│   ├── LNChatResponseDTO.cls + .cls-meta.xml
+│   ├── LNChatContextBuilderService.cls + .cls-meta.xml
+│   ├── LNChatBIService.cls + .cls-meta.xml
+│   ├── LNChatERPService.cls + .cls-meta.xml
+│   ├── LNChatLLMService.cls + .cls-meta.xml
+│   ├── LNChatRecordActionService.cls + .cls-meta.xml
+│   └── LNChatRecordActionServiceTest.cls + .cls-meta.xml
+├── customMetadata/
+│   └── AI_Config.Default.md-meta.xml
+├── flexipages/
+│   └── AI_Assistant_UtilityBar.flexipage-meta.xml
+├── lwc/
+│   ├── lnchatAlertBanner/
+│   ├── lnchatChartWidget/
+│   ├── lnchatComparisonTable/
+│   ├── lnchatDrawer/
+│   ├── lnchatHistory/
+│   ├── lnchatInput/
+│   ├── lnchatKpiCardGrid/
+│   ├── lnchatRecordActionCard/
+│   ├── lnchatRecordSummary/
+│   ├── lnchatResponseRenderer/
+│   ├── lnchatShell/
+│   ├── lnchatTableView/
+│   ├── lnchatTestUtil/
+│   └── lnchatTimelineView/
+├── namedCredentials/
+│   ├── Anthropic_Claude.namedCredential-meta.xml
+│   ├── External_BI.namedCredential-meta.xml
+│   ├── External_ERP.namedCredential-meta.xml
+│   └── OpenAI_GPT.namedCredential-meta.xml
+├── objects/
+│   ├── AI_Config__mdt/
+│   ├── LNChatMessage__c/
+│   └── LNChatSession__c/
+├── remoteSiteSettings/
+│   ├── External_BI.remoteSite-meta.xml
+│   ├── External_ERP.remoteSite-meta.xml
+│   └── OpenAI_API.remoteSite-meta.xml
+└── staticresources/
+    ├── chartjs.js
+    └── chartjs.resource-meta.xml
+
+================================================================================
+CRITICAL IMPLEMENTATION RULES (learned from production deployment)
+================================================================================
+
+1. CALLOUT-BEFORE-DML ORDER (CRITICAL):
+   Salesforce forbids HTTP callouts after any DML in the same transaction.
+   In LNChatController.sendMessage(), ALL callouts (context build, ERP, BI,
+   OpenAI) MUST happen BEFORE any DML (session create/update, message save).
+   Wrong order causes: "You have uncommitted work pending. Please commit or
+   rollback before calling out."
+
+2. LWC @api RESERVED NAMES:
+   Properties whose names start with "data" are RESERVED in LWC and cannot be
+   used as @api properties. Use chartSeries instead of datasets.
+   HTML attribute binding uses kebab-case: chart-series={chartDatasets}.
+   Other banned @api names: data, slot, key, ref, is.
+
+3. NAMED CREDENTIAL XML:
+   Use <endpoint> not <url> in namedCredential-meta.xml.
+   Use protocol=NoAuthentication + principalType=Anonymous for all named
+   credentials (OpenAI, ERP, BI, Anthropic). Users configure real auth in
+   Setup UI.
+
+4. UTILITY BAR LWC COMPONENT:
+   Component MUST have @api label = 'AI Assistant' in JS.
+   The js-meta.xml MUST list lightning__UtilityBar as a target and declare the
+   label property in a targetConfig for lightning__UtilityBar.
+   IMPORTANT: panelWidth and panelHeight are NOT @api properties — they are
+   configured in App Manager UI only.
+
+5. UTILITY BAR — PREFERRED DEPLOYMENT: Use lnchatDrawer.
+   lnchatDrawer is a standalone LWC (FAB + sliding drawer) that can be placed
+   on any Lightning page via App Builder. It hosts c-lnchat-shell with
+   display-mode="drawer". This avoids the FlexiPage validation error.
+   Add via: App Builder → drag lnchatDrawer to any page section.
+
+6. FLEXIPAGE UTILITY BAR — CANNOT DEPLOY VIA METADATA:
+   Salesforce platform validation ALWAYS rejects custom LWC components in
+   utility bar FlexiPages deployed via sf CLI / Metadata API with error:
+   "Invalid component [c:lnchatShell]: missing required decorator property [label]"
+   This is a known Salesforce platform limitation. Deploy everything else, then
+   configure the Utility Bar item via Setup → App Manager UI if needed. See
+   POST-DEPLOYMENT SETUP section below.
+
+7. CUSTOMAPPLICATION utilityBar FIELD:
+   The <utilityBar> element in a CustomApplication is a SIMPLE STRING (the name
+   of a FlexiPage), not an inline block. Structure:
+   <utilityBar>AI_Assistant_UtilityBar</utilityBar>
+
+8. CHATBOT HISTORY FLEX LAYOUT:
+   The lnchatHistory host element needs :host { flex:1; min-height:0;
+   display:flex; flex-direction:column; } in its CSS so the history scrolls
+   internally and the input stays anchored at the bottom of the panel.
+   Without this, long responses push the input off-screen (clipped by
+   overflow:hidden on the panel).
+
+9. CHATTER TAB:
+   Do NOT include standard-Chatter in CustomApplication tabs — it's unsupported
+   in Lightning apps and causes deploy failure.
+
+10. STATIC RESOURCE (Chart.js):
+    Download Chart.js v4.4.0 UMD bundle before deploying:
+    curl -L "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" \
+      -o force-app/main/default/staticresources/chartjs.js
+
+11. OPENAI API KEY:
+    The customMetadata file ships with placeholder "YOUR_OPENAI_API_KEY_HERE".
+    After deployment, set real key via:
+    Setup → Custom Metadata Types → AI Config → Manage Records → Default → Edit
+
+12. RECORD ACTION WRITE FLOW — CALLOUT RESTRICTION:
+    executeRecordAction() performs DML only (no callouts). It is a separate
+    @AuraEnabled method from sendMessage(). Never combine callouts + DML in
+    the same transaction when they are avoidable.
+
+13. RECORD ACTION DUPLICATE BYPASS:
+    LNChatRecordActionService.executeAction() accepts a bypassDuplicate Boolean.
+    When the user confirms past a duplicate warning, lnchatShell stores the
+    pending action in _pendingBypassAction and re-calls handleRecordActionConfirm
+    with bypassDuplicate=true. The lnchatAlertBanner fires 'alertproceed' /
+    'alertcancel' events (bubbling, composed) which lnchatShell listens for via
+    onalertproceed / onalertcancel on the c-lnchat-history element.
+
+14. NAVIGATIONMIXIN IN LNCHATSHELL:
+    lnchatShell must extend NavigationMixin(LightningElement) (not just
+    LightningElement) to support handleRecordNavigate() for navigating to
+    records from c-lnchat-record-summary clickable links. lnchatRecordSummary
+    fires a 'recordnavigate' event; lnchatShell listens on c-lnchat-history via
+    onrecordnavigate.
+
+15. RECORD SUMMARY RECORD ID ENRICHMENT:
+    The LLM may not reliably include Salesforce record IDs in record_summary
+    section items. LNChatController.enrichSummaryRecordIds() post-processes
+    the LLM JSON after the callout but before DML — it builds a name→Id lookup
+    from contextData.relatedRecords and injects missing recordIds. This runs
+    after the LLM call and before the DTO parse.
+
+16. QUERYSELECTOR TAG NAMES MUST MATCH COMPONENT FOLDER NAMES (CRITICAL):
+    LWC folder name determines the kebab-case HTML tag used in querySelector.
+    When components are renamed, ALL querySelector string literals in JS files
+    must be updated manually — sed on .html files alone is NOT sufficient.
+    Example: folder "lnchatHistory" → tag "c-lnchat-history"
+    lnchatShell.js uses: this.template.querySelector('c-lnchat-history')
+    If you use 'c-chatbot-history' after rename, querySelector returns null
+    and the chat panel will appear blank (all addMessage calls silently no-op).
+
+17. DISPLAYMODE PROPERTY:
+    lnchatShell accepts @api displayMode = 'utility' | 'sidebar' | 'drawer'.
+    The minimize button is hidden when displayMode is 'sidebar' or 'drawer'.
+    lnchatDrawer passes display-mode="drawer" to c-lnchat-shell.
+
+18. FILE ATTACHMENTS:
+    lnchatInput supports file attachments via browser FileReader API.
+    Dispatches messagesend with detail: { message, attachment }.
+    lnchatShell passes attachmentJson to LNChatController.sendMessage().
+    Images/PDFs: readAsDataURL → base64 data URL (max 3 MB).
+    CSV/TXT/JSON: readAsText → plain string (max 500 KB).
+    DOCX/DOC: rejected client-side with attacherror event.
+
+================================================================================
+SFDX PROJECT CONFIG (sfdx-project.json)
+================================================================================
+
+{
+  "packageDirectories": [
+    { "path": "force-app", "default": true }
+  ],
+  "name": "ai-chatbot",
+  "namespace": "",
+  "sfdcLoginUrl": "https://login.salesforce.com",
+  "sourceApiVersion": "62.0"
+}
+
+================================================================================
+APEX CLASS: LNChatController.cls
+================================================================================
+
+public with sharing class LNChatController {
+
+    @AuraEnabled
+    public static Map<String, Object> sendMessage(
+        String userMessage,
+        String recordId,
+        String objectApiName,
+        String conversationHistoryJson,
+        String attachmentJson
+    ) {
+        try {
+            if (String.isBlank(userMessage)) {
+                throw new AuraHandledException('User message cannot be empty');
+            }
+
+            // All callouts must happen before any DML
+            LNChatContextBuilderService contextBuilder = new LNChatContextBuilderService();
+            Map<String, Object> contextData = contextBuilder.buildContext(recordId, objectApiName);
+
+            List<Map<String, String>> conversationHistory = parseConversationHistory(conversationHistoryJson);
+
+            LNChatLLMService llmService = new LNChatLLMService();
+            String llmResponseJson = llmService.chat(conversationHistory, userMessage, contextData, attachmentJson);
+
+            // Inject record IDs into record_summary items using context data (more reliable than LLM)
+            llmResponseJson = enrichSummaryRecordIds(llmResponseJson, contextData);
+
+            LNChatResponseDTO responseDTO = LNChatResponseDTO.fromJson(llmResponseJson);
+
+            // DML after all callouts are complete
+            String sessionId = getOrCreateSession(recordId, objectApiName);
+            saveChatMessage(sessionId, 'user', userMessage, null);
+            saveChatMessage(sessionId, 'assistant', llmResponseJson, responseDTO.responseType);
+
+            Map<String, Object> result = new Map<String, Object>{
+                'responseType' => responseDTO.responseType,
+                'title' => responseDTO.title,
+                'summary' => responseDTO.summary,
+                'data' => responseDTO.data,
+                'actions' => serializeActions(responseDTO.actions),
+                'rawJson' => responseDTO.rawJson,
+                'sessionId' => sessionId
+            };
+
+            return result;
+
+        } catch (AuraHandledException ahe) {
+            throw ahe;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, 'LNChatController.sendMessage error: ' + e.getMessage() + ' | ' + e.getStackTraceString());
+            throw new AuraHandledException('An unexpected error occurred: ' + e.getMessage());
+        }
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static List<Map<String, Object>> getConversationHistory(String recordId) {
+        List<Map<String, Object>> messages = new List<Map<String, Object>>();
+
+        if (String.isBlank(recordId)) {
+            return messages;
+        }
+
+        try {
+            List<LNChatSession__c> sessions = [
+                SELECT Id
+                FROM LNChatSession__c
+                WHERE RecordId__c = :recordId
+                ORDER BY LastActivityDate__c DESC
+                LIMIT 1
+            ];
+
+            if (sessions.isEmpty()) {
+                return messages;
+            }
+
+            String sessionId = sessions[0].Id;
+
+            List<LNChatMessage__c> chatMessages = [
+                SELECT Role__c, Content__c, ResponseType__c, CreatedDate
+                FROM LNChatMessage__c
+                WHERE Session__c = :sessionId
+                ORDER BY CreatedDate ASC
+                LIMIT 50
+            ];
+
+            for (LNChatMessage__c msg : chatMessages) {
+                messages.add(new Map<String, Object>{
+                    'role' => msg.Role__c,
+                    'content' => msg.Content__c,
+                    'responseType' => msg.ResponseType__c,
+                    'timestamp' => String.valueOf(msg.CreatedDate)
+                });
+            }
+
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'getConversationHistory failed: ' + e.getMessage());
+        }
+
+        return messages;
+    }
+
+    @AuraEnabled
+    public static Map<String, Object> executeRecordAction(
+        String objectApiName,
+        String operation,
+        String recordId,
+        String fieldsJson,
+        String currentPageRecordId,
+        Boolean bypassDuplicate
+    ) {
+        try {
+            Map<String, Object> fields = new Map<String, Object>();
+            if (String.isNotBlank(fieldsJson)) {
+                fields = (Map<String, Object>) JSON.deserializeUntyped(fieldsJson);
+            }
+            return LNChatRecordActionService.executeAction(objectApiName, operation, recordId, fields, currentPageRecordId, bypassDuplicate == true);
+        } catch (AuraHandledException ahe) {
+            throw ahe;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, 'executeRecordAction error: ' + e.getMessage());
+            throw new AuraHandledException('Record action failed: ' + e.getMessage());
+        }
+    }
+
+    @AuraEnabled
+    public static void clearConversationHistory(String recordId) {
+        if (String.isBlank(recordId)) {
+            return;
+        }
+
+        try {
+            List<LNChatSession__c> sessions = [
+                SELECT Id
+                FROM LNChatSession__c
+                WHERE RecordId__c = :recordId
+                LIMIT 1
+            ];
+
+            if (!sessions.isEmpty()) {
+                List<LNChatMessage__c> messagesToDelete = [
+                    SELECT Id
+                    FROM LNChatMessage__c
+                    WHERE Session__c = :sessions[0].Id
+                ];
+                if (!messagesToDelete.isEmpty()) {
+                    delete messagesToDelete;
+                }
+                delete sessions[0];
+            }
+        } catch (Exception e) {
+            throw new AuraHandledException('Failed to clear history: ' + e.getMessage());
+        }
+    }
+
+    private static String getOrCreateSession(String recordId, String objectApiName) {
+        if (String.isBlank(recordId)) {
+            return null;
+        }
+
+        List<LNChatSession__c> existingSessions = [
+            SELECT Id
+            FROM LNChatSession__c
+            WHERE RecordId__c = :recordId
+            LIMIT 1
+        ];
+
+        if (!existingSessions.isEmpty()) {
+            LNChatSession__c session = existingSessions[0];
+            session.LastActivityDate__c = System.now();
+            update session;
+            return session.Id;
+        }
+
+        LNChatSession__c newSession = new LNChatSession__c(
+            RecordId__c = recordId,
+            ObjectApiName__c = objectApiName,
+            LastActivityDate__c = System.now()
+        );
+        insert newSession;
+        return newSession.Id;
+    }
+
+    private static void saveChatMessage(String sessionId, String role, String content, String responseType) {
+        if (String.isBlank(sessionId)) {
+            return;
+        }
+
+        try {
+            LNChatMessage__c message = new LNChatMessage__c(
+                Session__c = sessionId,
+                Role__c = role,
+                Content__c = content != null && content.length() > 131072 ? content.substring(0, 131072) : content,
+                ResponseType__c = responseType
+            );
+            insert message;
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'saveChatMessage failed: ' + e.getMessage());
+        }
+    }
+
+    private static List<Map<String, String>> parseConversationHistory(String historyJson) {
+        List<Map<String, String>> history = new List<Map<String, String>>();
+
+        if (String.isBlank(historyJson)) {
+            return history;
+        }
+
+        try {
+            List<Object> parsed = (List<Object>) JSON.deserializeUntyped(historyJson);
+            for (Object item : parsed) {
+                if (item instanceof Map<String, Object>) {
+                    Map<String, Object> itemMap = (Map<String, Object>) item;
+                    String role = (String) itemMap.get('role');
+                    String content = (String) itemMap.get('content');
+                    if (String.isNotBlank(role) && String.isNotBlank(content)) {
+                        history.add(new Map<String, String>{
+                            'role' => role,
+                            'content' => content
+                        });
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'parseConversationHistory failed: ' + e.getMessage());
+        }
+
+        return history;
+    }
+
+    private static List<Map<String, Object>> serializeActions(List<LNChatResponseDTO.ActionDTO> actions) {
+        List<Map<String, Object>> result = new List<Map<String, Object>>();
+        if (actions == null) {
+            return result;
+        }
+        for (LNChatResponseDTO.ActionDTO action : actions) {
+            result.add(new Map<String, Object>{
+                'label' => action.label,
+                'flowApiName' => action.flowApiName,
+                'inputVariables' => action.inputVariables
+            });
+        }
+        return result;
+    }
+
+    // Post-process record_summary responses to inject Salesforce record IDs into section items.
+    // The LLM has the IDs in context but may not reliably include them — we look them up here instead.
+    private static String enrichSummaryRecordIds(String responseJson, Map<String, Object> contextData) {
+        if (String.isBlank(responseJson) || contextData == null) return responseJson;
+        try {
+            Map<String, Object> response = (Map<String, Object>) JSON.deserializeUntyped(responseJson);
+            if ((String) response.get('responseType') != 'record_summary') return responseJson;
+
+            // Build name/subject → Id lookup across all related record lists
+            Map<String, String> nameToId = new Map<String, String>();
+
+            Map<String, Object> related = (Map<String, Object>) contextData.get('relatedRecords');
+            if (related != null) {
+                for (String key : related.keySet()) {
+                    Object val = related.get(key);
+                    if (!(val instanceof List<Object>)) continue;
+                    for (Object obj : (List<Object>) val) {
+                        if (!(obj instanceof Map<String, Object>)) continue;
+                        Map<String, Object> rec = (Map<String, Object>) obj;
+                        String recId = (String) rec.get('Id');
+                        if (String.isBlank(recId)) continue;
+                        // Name field (Account, Opportunity, Case, Order, Contract, Quote)
+                        String recName = (String) rec.get('Name');
+                        if (String.isNotBlank(recName)) nameToId.put(recName.toLowerCase(), recId);
+                        // Subject (Task)
+                        String subject = (String) rec.get('Subject');
+                        if (String.isNotBlank(subject)) nameToId.put(subject.toLowerCase(), recId);
+                        // Contact: FirstName + LastName
+                        String lastName = (String) rec.get('LastName');
+                        if (String.isNotBlank(lastName)) {
+                            String firstName = (String) rec.get('FirstName');
+                            String full = (String.isNotBlank(firstName) ? firstName + ' ' : '') + lastName;
+                            nameToId.put(full.toLowerCase(), recId);
+                        }
+                    }
+                }
+            }
+
+            // Also include the main record itself
+            Map<String, Object> sfRecord = (Map<String, Object>) contextData.get('salesforceRecord');
+            if (sfRecord != null) {
+                String recId = (String) sfRecord.get('Id');
+                String recName = (String) sfRecord.get('Name');
+                if (String.isNotBlank(recId) && String.isNotBlank(recName)) {
+                    nameToId.put(recName.toLowerCase(), recId);
+                }
+            }
+
+            if (nameToId.isEmpty()) return responseJson;
+
+            // Walk sections → items and inject missing recordIds
+            Map<String, Object> data = (Map<String, Object>) response.get('data');
+            if (data == null) return responseJson;
+            List<Object> sections = (List<Object>) data.get('sections');
+            if (sections == null) return responseJson;
+
+            Boolean modified = false;
+            for (Object secObj : sections) {
+                if (!(secObj instanceof Map<String, Object>)) continue;
+                List<Object> items = (List<Object>) ((Map<String, Object>) secObj).get('items');
+                if (items == null) continue;
+                for (Object itmObj : items) {
+                    if (!(itmObj instanceof Map<String, Object>)) continue;
+                    Map<String, Object> item = (Map<String, Object>) itmObj;
+                    if (String.isNotBlank((String) item.get('recordId'))) continue;
+                    String itemName = (String) item.get('name');
+                    if (String.isBlank(itemName)) continue;
+                    String foundId = nameToId.get(itemName.toLowerCase());
+                    if (String.isNotBlank(foundId)) {
+                        item.put('recordId', foundId);
+                        modified = true;
+                    }
+                }
+            }
+
+            return modified ? JSON.serialize(response) : responseJson;
+
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'enrichSummaryRecordIds failed: ' + e.getMessage());
+            return responseJson;
+        }
+    }
+}
+
+================================================================================
+APEX CLASS: LNChatLLMService.cls
+================================================================================
+
+public with sharing class LNChatLLMService {
+
+    private static final String NAMED_CREDENTIAL = 'callout:OpenAI_GPT';
+    private static final String API_PATH = '/v1/chat/completions';
+    private static final String DEFAULT_MODEL = 'gpt-4o';
+    private static final Integer DEFAULT_MAX_TOKENS = 4096;
+    private static final Integer RETRY_WAIT_MS = 2000;
+
+    private static final String SYSTEM_PROMPT = 'You are an intelligent AI assistant embedded inside Salesforce CRM. '
+        + 'You have been provided with context data from both Salesforce and external '
+        + 'business systems. Your job is to help the user understand their data, '
+        + 'identify risks and opportunities, and take action.\n\n'
+        + 'RESPONSE FORMAT — CRITICAL:\n'
+        + 'You must ALWAYS respond with a single valid JSON object. Never respond with '
+        + 'plain text. Never wrap the JSON in markdown code fences. The JSON must '
+        + 'exactly match one of the following schemas based on the best visual format '
+        + 'for the answer:\n\n'
+        + 'SCHEMA 1 — KPI Cards (use for metrics, numbers, performance summaries):\n'
+        + '{\n'
+        + '  "responseType": "kpi_cards",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "string — 2-3 sentence plain English explanation",\n'
+        + '  "data": {\n'
+        + '    "cards": [\n'
+        + '      {\n'
+        + '        "label": "string",\n'
+        + '        "value": "string or number",\n'
+        + '        "unit": "string (%, $, days, etc.)",\n'
+        + '        "trend": "string (e.g. +12% vs last quarter)",\n'
+        + '        "trendDirection": "up | down | neutral",\n'
+        + '        "icon": "one of: opportunity, moneybag, funnel, contact, people, task, case, account, order, contract, quote, event, warning, error, success, chart, forecast, target, metrics, lead"\n'
+        + '      }\n'
+        + '    ]\n'
+        + '  },\n'
+        + '  "actions": [\n'
+        + '    { "label": "string", "flowApiName": "string", "inputVariables": {} }\n'
+        + '  ]\n'
+        + '}\n\n'
+        + 'SCHEMA 2 — Chart (use for trends over time, comparisons, distributions):\n'
+        + '{\n'
+        + '  "responseType": "chart",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "string",\n'
+        + '  "data": {\n'
+        + '    "chartType": "bar | line | donut",\n'
+        + '    "labels": ["string"],\n'
+        + '    "datasets": [\n'
+        + '      {\n'
+        + '        "label": "string",\n'
+        + '        "data": [number],\n'
+        + '        "color": "hex color string"\n'
+        + '      }\n'
+        + '    ]\n'
+        + '  },\n'
+        + '  "actions": []\n'
+        + '}\n\n'
+        + 'SCHEMA 3 — Comparison Table (use when comparing SF data vs external data):\n'
+        + '{\n'
+        + '  "responseType": "comparison",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "string",\n'
+        + '  "data": {\n'
+        + '    "columns": ["Field", "Salesforce", "External System"],\n'
+        + '    "rows": [\n'
+        + '      {\n'
+        + '        "field": "string",\n'
+        + '        "salesforceValue": "string",\n'
+        + '        "externalValue": "string",\n'
+        + '        "isDifferent": true\n'
+        + '      }\n'
+        + '    ],\n'
+        + '    "highlightDiffs": true\n'
+        + '  },\n'
+        + '  "actions": []\n'
+        + '}\n\n'
+        + 'SCHEMA 4 — Timeline (use for activity history, project phases, event sequences):\n'
+        + '{\n'
+        + '  "responseType": "timeline",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "string",\n'
+        + '  "data": {\n'
+        + '    "events": [\n'
+        + '      {\n'
+        + '        "date": "YYYY-MM-DD",\n'
+        + '        "title": "string",\n'
+        + '        "description": "string",\n'
+        + '        "type": "meeting | deal | issue | milestone",\n'
+        + '        "status": "completed | pending | overdue"\n'
+        + '      }\n'
+        + '    ]\n'
+        + '  },\n'
+        + '  "actions": []\n'
+        + '}\n\n'
+        + 'SCHEMA 5 — Alert (use for risks, anomalies, urgent issues, compliance flags):\n'
+        + '{\n'
+        + '  "responseType": "alert",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "string",\n'
+        + '  "data": {\n'
+        + '    "severity": "critical | warning | info | success",\n'
+        + '    "alertTitle": "string",\n'
+        + '    "message": "string",\n'
+        + '    "details": ["string"]\n'
+        + '  },\n'
+        + '  "actions": [\n'
+        + '    { "label": "string", "flowApiName": "string", "inputVariables": {} }\n'
+        + '  ]\n'
+        + '}\n\n'
+        + 'SCHEMA 6 — Summary (use for general explanations, narrative answers):\n'
+        + '{\n'
+        + '  "responseType": "summary",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "string",\n'
+        + '  "data": {\n'
+        + '    "sections": [\n'
+        + '      { "heading": "string", "body": "string" }\n'
+        + '    ],\n'
+        + '    "badges": [\n'
+        + '      { "label": "string", "color": "success | warning | error | brand" }\n'
+        + '    ]\n'
+        + '  },\n'
+        + '  "actions": []\n'
+        + '}\n\n'
+        + 'SCHEMA 7 — Record Summary (REQUIRED when user asks to summarize, review, or get an overview of the current record):\n'
+        + '{\n'
+        + '  "responseType": "record_summary",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "2-3 sentence plain English overview",\n'
+        + '  "data": {\n'
+        + '    "header": {\n'
+        + '      "name": "record name",\n'
+        + '      "subtitle": "city, state · website · phone (comma-separated, omit blanks)",\n'
+        + '      "badge": "status label e.g. Active",\n'
+        + '      "badgeColor": "success | warning | error | brand | neutral"\n'
+        + '    },\n'
+        + '    "kpis": [\n'
+        + '      { "label": "CONTACTS", "value": "7", "sub": "3 active" }\n'
+        + '    ],\n'
+        + '    "sections": [\n'
+        + '      {\n'
+        + '        "title": "OPPORTUNITIES",\n'
+        + '        "items": [\n'
+        + '          {\n'
+        + '            "recordId": "Salesforce 18-char Id from context data (null if not available)",\n'
+        + '            "name": "string",\n'
+        + '            "subtitle": "secondary detail line — email for Contact, status for Case/Task, role for OCR; omit if not applicable",\n'
+        + '            "date": "string (e.g. Closes Feb 4 2027) — omit if not applicable",\n'
+        + '            "amount": "string (e.g. $5,698) — omit if not applicable",\n'
+        + '            "badges": [ { "label": "string", "color": "success|warning|error|brand|neutral" } ]\n'
+        + '          }\n'
+        + '        ]\n'
+        + '      }\n'
+        + '    ]\n'
+        + '  },\n'
+        + '  "actions": []\n'
+        + '}\n\n'
+        + 'SCHEMA 8 — Record Action (REQUIRED when user asks to create or update a record):\n'
+        + '{\n'
+        + '  "responseType": "record_action",\n'
+        + '  "title": "string (e.g. \\"Create Account: Test123\\")",\n'
+        + '  "summary": "string — tell the user what will happen and ask them to confirm",\n'
+        + '  "data": {\n'
+        + '    "operation": "create | update",\n'
+        + '    "objectApiName": "Account | Contact | Task | Case | Opportunity | Quote | Lead",\n'
+        + '    "recordId": "string (Salesforce record Id for update, null for create)",\n'
+        + '    "fields": {\n'
+        + '      "FieldApiName": "value"\n'
+        + '    }\n'
+        + '  },\n'
+        + '  "actions": []\n'
+        + '}\n\n'
+        + 'SCHEMA 9 — Table (use when displaying structured multi-column data: pricing tables, SKU lists, schedules, product catalogs, agreement line items, or any data the user explicitly asks to see in table format):\n'
+        + '{\n'
+        + '  "responseType": "table",\n'
+        + '  "title": "string",\n'
+        + '  "summary": "string",\n'
+        + '  "data": {\n'
+        + '    "columns": ["Column A", "Column B", "Column C"],\n'
+        + '    "rows": [\n'
+        + '      ["row1col1", "row1col2", "row1col3"],\n'
+        + '      ["row2col1", "row2col2", "row2col3"]\n'
+        + '    ]\n'
+        + '  },\n'
+        + '  "actions": []\n'
+        + '}\n\n'
+        + 'Supported field API names by object:\n'
+        + '  Account: Name, BillingStreet, BillingCity, BillingState, BillingPostalCode, BillingCountry, Phone, Website, Industry, Type, Description\n'
+        + '  Contact: FirstName, LastName, AccountId, Email, Phone, Title, Department, MailingStreet, MailingCity, MailingState, MailingPostalCode, Description\n'
+        + '  Opportunity: Name, CloseDate, StageName, Amount, AccountId, Type, Description, Probability\n'
+        + '  Case: Subject, Status, Priority, Origin, Type, AccountId, ContactId, Description\n'
+        + '  Task: Subject, Status, Priority, ActivityDate, WhoId, WhatId, Description\n'
+        + '  Quote: Name, OpportunityId, Status, ExpirationDate, Description, BillingName, BillingStreet, BillingCity, BillingState, BillingPostalCode, ShippingName, ShippingStreet, ShippingCity, ShippingState, ShippingPostalCode\n\n'
+        + 'REQUIRED FIELD DEFAULTS — when creating a record, always include these even if the user did not mention them:\n'
+        + '  Opportunity: CloseDate = TODAY + 30 days (compute from TODAY\'S DATE in context), StageName = "Prospecting"\n'
+        + '  Quote: Status = "Draft", ExpirationDate = TODAY + 30 days\n'
+        + '  Case: Status = "New", Priority = "Medium", Origin = "Web"\n'
+        + '  Task: Status = "Not Started", Priority = "Normal"\n'
+        + '  Lead: Status = "Open - Not Contacted"\n'
+        + 'If the user explicitly provides a value it overrides the default. For dates use ISO 8601 (YYYY-MM-DD).\n\n'
+        + 'AUTOMATIC PARENT ASSOCIATIONS — you MUST apply these every time:\n'
+        + '  When on an Account page (objectApiName=Account, currentId=salesforceRecord.Id):\n'
+        + '    Create Contact → set AccountId = currentId\n'
+        + '    Create Opportunity → set AccountId = currentId\n'
+        + '    Create Case → set AccountId = currentId\n'
+        + '    Create Task → set WhatId = currentId\n'
+        + '  When on a Contact page (objectApiName=Contact, currentId=salesforceRecord.Id):\n'
+        + '    Create Task → set WhoId = currentId; if salesforceRecord.AccountId exists also set WhatId = salesforceRecord.AccountId\n'
+        + '    Create Opportunity → set AccountId = salesforceRecord.AccountId\n'
+        + '    Create Case → set ContactId = currentId; set AccountId = salesforceRecord.AccountId\n'
+        + '  When on an Opportunity page (objectApiName=Opportunity, currentId=salesforceRecord.Id):\n'
+        + '    Create Task → set WhatId = currentId\n'
+        + '    Create Quote → set OpportunityId = currentId\n'
+        + '    Create Contact → set AccountId = salesforceRecord.AccountId\n'
+        + '    Create Case → set AccountId = salesforceRecord.AccountId\n'
+        + '  When on a Case page (objectApiName=Case, currentId=salesforceRecord.Id):\n'
+        + '    Create Task → set WhatId = currentId\n'
+        + '    Create Contact → set AccountId = salesforceRecord.AccountId\n\n'
+        + 'RULES:\n'
+        + '1. Pick the responseType that best visualizes the answer — never default to summary '
+        + 'when numbers, trends, or timelines are present.\n'
+        + '2. The summary field is always plain English — no JSON, no markdown inside it.\n'
+        + '3. The actions array can be empty [] but must always be present.\n'
+        + '4. All monetary values should include currency symbol in the value string.\n'
+        + '5. Dates must be ISO 8601 format (YYYY-MM-DD).\n'
+        + '6. If you cannot determine a value, use "N/A" — never null or undefined.\n'
+        + '7. Be concise but insightful — surface non-obvious patterns in the data.\n'
+        + '8. CRITICAL: When the user asks to create or update a record, you MUST use '
+        + 'responseType "record_action". NEVER tell the user to do it manually.\n'
+        + '9. CURRENT RECORD RULE: When the user says "update account", "update contact", "update this record", '
+        + '"change [field] on this [object]", or any phrase that refers to the record they are currently viewing — '
+        + 'ALWAYS use salesforceRecord.Id from context as the recordId. Do NOT search relatedRecords for a name match. '
+        + 'The current page record is always identified by salesforceRecord.Id in context. For create, set recordId to null.\n'
+        + '10. Only include fields the user provided or required defaults. Task Status = "Not Started", Case Status = "New".\n'
+        + '11. ALWAYS apply the AUTOMATIC PARENT ASSOCIATIONS above. Never omit AccountId, WhatId, or WhoId '
+        + 'when you are on a record page that provides those parent IDs in context. '
+        + 'The user should never have to say "link it to the account" — do it automatically.\n'
+        + '12. AMBIGUITY RULE: Before proposing a record_action UPDATE, scan relatedRecords in context for '
+        + 'other records with the same name as the target. If more than one match exists, do NOT propose '
+        + 'the update. Instead respond with responseType "summary" listing each candidate with their '
+        + 'Salesforce Id, name, email, and key fields, and ask the user to tell you the exact Record ID '
+        + 'of the one they want to update. Only produce record_action when the target is unambiguous.\n'
+        + '13. COMPREHENSIVE SUMMARY RULE: When the user asks to summarize, review, or get an overview of '
+        + 'a record, ALWAYS use responseType "record_summary" (SCHEMA 7). '
+        + 'For each item in a section, include "recordId" with the Salesforce Id from the context data (18-char Id). '
+        + 'OMIT any section entirely if its items array would be empty — do NOT include sections with no data. '
+        + 'OPEN RECORDS ONLY: In sections, only include open/active records — open opportunities (IsClosed=false), '
+        + 'non-closed cases (Status ≠ Closed/Resolved), incomplete tasks (Status ≠ Completed/Cancelled). '
+        + 'Skip any record that is closed, resolved, completed, or cancelled. '
+        + 'SECTION SIZE CAP: Show at most 5 items per section. If the context contains more qualifying records '
+        + 'than shown, add one final placeholder item with name="+ [N] more open [object]...", no recordId, no badges. '
+        + 'KPI counts (e.g. OPEN OPPS, CASES) should reflect the totals from context, not just the 5 shown. '
+        + 'Include the following sections when data exists:\n'
+        + '  Account → kpis: CONTACTS, OPEN OPPS (sub: X won total), QUOTES, ORDERS, CONTRACTS, TASKS (sub: X open), CASES (sub: X open)\n'
+        + '            sections: OPPORTUNITIES, QUOTES, CONTRACTS, ORDERS, RECENT TASKS, CASES, CONTACTS\n'
+        + '  Contact → kpis: OPPORTUNITIES, CASES, TASKS\n'
+        + '            sections: PARENT ACCOUNT, OPPORTUNITIES, CASES, RECENT TASKS\n'
+        + '  Opportunity → kpis: CONTACTS, QUOTES, TASKS\n'
+        + '                sections: CONTACTS, QUOTES, RECENT TASKS, ORDERS\n'
+        + '  Case → kpis: TASKS\n'
+        + '         sections: CONTACT & ACCOUNT, RECENT TASKS\n'
+        + '  Lead → kpis: TASKS (sub: X open)\n'
+        + '         sections: RECENT TASKS\n'
+        + '         header: use Status as badge (e.g. "Open - Not Contacted"), Company as subtitle, LeadSource as a neutral badge\n'
+        + '  Quote → kpis: TASKS (sub: X open)\n'
+        + '          sections: PARENT OPPORTUNITY, RECENT TASKS\n'
+        + '          header: use Status as badge (e.g. "Draft"), ExpirationDate + GrandTotal in subtitle\n'
+        + 'Item field usage by section type (set subtitle, date, amount appropriately — NEVER use "N/A", omit the field instead):\n'
+        + '  CONTACTS items   → subtitle = email (e.g. "john@acme.com"); omit date; omit amount; badges = [{ label: Title or Department if known, color: "neutral" }]\n'
+        + '  OPPORTUNITIES items → date = close date (e.g. "Closes Jun 30 2025"); amount = deal value (e.g. "$50,000"); subtitle = stage\n'
+        + '  CASES items      → subtitle = Status (e.g. "Open"); date = created date; omit amount; badges = [{ label: Type (e.g. "Electrical"), color: "neutral" }] if Type is known\n'
+        + '  TASKS items      → subtitle = Status (e.g. "Not Started"); date = due date; omit amount\n'
+        + '  QUOTES items     → subtitle = Status (e.g. "Draft"); date = expiry date; amount = GrandTotal\n'
+        + '  ORDERS items     → subtitle = Status; date = effective date; amount = TotalAmount\n'
+        + '  CONTRACTS items  → subtitle = Status; date = start–end range\n'
+        + '  PARENT OPPORTUNITY items → subtitle = stage; date = close date; amount = Amount\n'
+        + 'Badge color rules: Active/Activated/Closed Won/Contracted/Accepted/Approved → success; '
+        + 'Draft/Open/Pending/Prospecting/In Progress/Working/New → brand; '
+        + 'Closed Lost/Overdue/Critical/Rejected/Denied → error; '
+        + 'At Risk/Warning/Due Soon/Needs Review → warning; everything else → neutral.\n'
+        + 'Lead-specific badge: "Open - Not Contacted" → brand; "Working" → brand; "Closed - Converted" → success; "Closed - Not Converted" → neutral.\n'
+        + 'Quote-specific badge: "Draft" → brand; "Needs Review" / "In Review" → warning; "Approved" / "Accepted" → success; "Rejected" / "Denied" → error; "Presented" → brand.\n'
+        + 'header.badge should be the record\'s Status or Active/Inactive field. '
+        + 'KPI sub field should show meaningful breakdown (e.g. "2 won total", "1 open").\n'
+        + '14. Use responseType "table" when the user asks for a table, or when displaying structured data with multiple attributes per row (e.g. pricing tables, SKU lists, schedules, agreement line items). '
+        + 'Each row must be a flat array of strings matching the columns order. Do not use summary for this — use table.';
+
+    public String chat(List<Map<String, String>> conversationHistory, String userMessage, Map<String, Object> contextData, String attachmentJson) {
+        String apiKey = getApiKey();
+        String modelName = getModelName();
+        Integer maxTokens = getMaxTokens();
+
+        String contextJson = JSON.serialize(contextData);
+        String systemPromptWithContext = SYSTEM_PROMPT
+            + '\n\nTODAY\'S DATE: ' + String.valueOf(System.today()) + ' (use this to compute relative dates like "today + 30 days")'
+            + '\n\nCURRENT RECORD CONTEXT (use this data to answer):\n'
+            + contextJson;
+
+        // Use Map<String, Object> for content so we can support multimodal (image/file) payloads
+        List<Map<String, Object>> messages = new List<Map<String, Object>>();
+        messages.add(new Map<String, Object>{ 'role' => 'system', 'content' => systemPromptWithContext });
+
+        if (conversationHistory != null) {
+            for (Map<String, String> histMsg : conversationHistory) {
+                messages.add(new Map<String, Object>{
+                    'role' => histMsg.get('role'),
+                    'content' => histMsg.get('content')
+                });
+            }
+        }
+
+        // Build the user turn — plain text or multimodal depending on attachment
+        if (String.isNotBlank(attachmentJson)) {
+            try {
+                Map<String, Object> att = (Map<String, Object>) JSON.deserializeUntyped(attachmentJson);
+                String attType = (String) att.get('type');
+                String attName = (String) att.get('name');
+                String prompt = String.isNotBlank(userMessage) ? userMessage : 'Please analyze this file and respond in the required JSON format.';
+
+                if (attType == 'image') {
+                    String dataUrl = (String) att.get('base64Data');
+                    List<Object> parts = new List<Object>{
+                        new Map<String, String>{ 'type' => 'text', 'text' => prompt },
+                        new Map<String, Object>{
+                            'type' => 'image_url',
+                            'image_url' => new Map<String, String>{ 'url' => dataUrl }
+                        }
+                    };
+                    messages.add(new Map<String, Object>{ 'role' => 'user', 'content' => parts });
+
+                } else if (attType == 'text') {
+                    String fileContent = (String) att.get('content');
+                    String enriched = prompt + '\n\n[Attached file: ' + attName + ']\n' + fileContent;
+                    messages.add(new Map<String, Object>{ 'role' => 'user', 'content' => enriched });
+
+                } else if (attType == 'pdf') {
+                    String dataUrl = (String) att.get('base64Data');
+                    List<Object> parts = new List<Object>{
+                        new Map<String, String>{ 'type' => 'text', 'text' => prompt },
+                        new Map<String, Object>{
+                            'type' => 'file',
+                            'file' => new Map<String, String>{
+                                'filename' => attName,
+                                'file_data' => dataUrl
+                            }
+                        }
+                    };
+                    messages.add(new Map<String, Object>{ 'role' => 'user', 'content' => parts });
+
+                } else {
+                    messages.add(new Map<String, Object>{ 'role' => 'user', 'content' => prompt });
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, 'LNChatLLMService: failed to build attachment content — ' + e.getMessage());
+                messages.add(new Map<String, Object>{ 'role' => 'user', 'content' => userMessage });
+            }
+        } else {
+            messages.add(new Map<String, Object>{ 'role' => 'user', 'content' => userMessage });
+        }
+
+        Map<String, Object> requestBody = new Map<String, Object>{
+            'model' => modelName,
+            'max_completion_tokens' => maxTokens,
+            'messages' => messages,
+            'response_format' => new Map<String, String>{ 'type' => 'json_object' }
+        };
+
+        return executeRequest(requestBody, apiKey, false);
+    }
+
+    private String executeRequest(Map<String, Object> requestBody, String apiKey, Boolean isRetry) {
+        try {
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint(NAMED_CREDENTIAL + API_PATH);
+            req.setMethod('POST');
+            req.setHeader('Content-Type', 'application/json');
+            req.setHeader('Authorization', 'Bearer ' + apiKey);
+            req.setBody(JSON.serialize(requestBody));
+            req.setTimeout(60000);
+
+            Http http = new Http();
+            HttpResponse res = http.send(req);
+
+            Integer statusCode = res.getStatusCode();
+
+            if (statusCode == 200) {
+                return parseSuccessResponse(res.getBody());
+            }
+
+            if (statusCode == 429 && !isRetry) {
+                Long startWait = System.currentTimeMillis();
+                while (System.currentTimeMillis() - startWait < RETRY_WAIT_MS) {
+                    // busy wait — Apex has no Thread.sleep
+                }
+                return executeRequest(requestBody, apiKey, true);
+            }
+
+            throw new CalloutException('OpenAI API error ' + statusCode + ': ' + res.getBody());
+
+        } catch (CalloutException ce) {
+            throw ce;
+        } catch (Exception e) {
+            throw new AuraHandledException('LLM request failed: ' + e.getMessage());
+        }
+    }
+
+    private String parseSuccessResponse(String responseBody) {
+        try {
+            Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(responseBody);
+            List<Object> choices = (List<Object>) parsed.get('choices');
+            if (choices != null && !choices.isEmpty()) {
+                Map<String, Object> firstChoice = (Map<String, Object>) choices[0];
+                String finishReason = (String) firstChoice.get('finish_reason');
+                Map<String, Object> message = (Map<String, Object>) firstChoice.get('message');
+                if (message != null) {
+                    String content = (String) message.get('content');
+                    if (String.isNotBlank(content)) {
+                        return content.trim();
+                    }
+                }
+                if ('length'.equals(finishReason)) {
+                    throw new AuraHandledException('Response was cut off — the request is too long for the current token limit. Increase MaxTokens in AI Config custom metadata (currently ' + DEFAULT_MAX_TOKENS + ').');
+                }
+            }
+            throw new AuraHandledException('No content in OpenAI response');
+        } catch (Exception e) {
+            throw new AuraHandledException('Failed to parse OpenAI response: ' + e.getMessage());
+        }
+    }
+
+    private String getApiKey() {
+        List<AI_Config__mdt> configs = [
+            SELECT ApiKey__c
+            FROM AI_Config__mdt
+            WHERE DeveloperName = 'Default'
+            LIMIT 1
+        ];
+        if (!configs.isEmpty() && String.isNotBlank(configs[0].ApiKey__c)) {
+            return configs[0].ApiKey__c;
+        }
+        throw new AuraHandledException('OpenAI API key not configured in AI_Config__mdt');
+    }
+
+    private String getModelName() {
+        List<AI_Config__mdt> configs = [
+            SELECT ModelName__c
+            FROM AI_Config__mdt
+            WHERE DeveloperName = 'Default'
+            LIMIT 1
+        ];
+        if (!configs.isEmpty() && String.isNotBlank(configs[0].ModelName__c)) {
+            return configs[0].ModelName__c;
+        }
+        return DEFAULT_MODEL;
+    }
+
+    private Integer getMaxTokens() {
+        List<AI_Config__mdt> configs = [
+            SELECT MaxTokens__c
+            FROM AI_Config__mdt
+            WHERE DeveloperName = 'Default'
+            LIMIT 1
+        ];
+        if (!configs.isEmpty() && configs[0].MaxTokens__c != null) {
+            return Integer.valueOf(configs[0].MaxTokens__c);
+        }
+        return DEFAULT_MAX_TOKENS;
+    }
+}
+
+================================================================================
+APEX CLASS: LNChatResponseDTO.cls
+================================================================================
+
+public with sharing class LNChatResponseDTO {
+    public String responseType { get; set; }
+    public String title { get; set; }
+    public String summary { get; set; }
+    public Map<String, Object> data { get; set; }
+    public List<ActionDTO> actions { get; set; }
+    public String rawJson { get; set; }
+
+    public class ActionDTO {
+        public String label { get; set; }
+        public String flowApiName { get; set; }
+        public Map<String, Object> inputVariables { get; set; }
+
+        public ActionDTO() {
+            this.inputVariables = new Map<String, Object>();
+        }
+    }
+
+    public LNChatResponseDTO() {
+        this.actions = new List<ActionDTO>();
+        this.data = new Map<String, Object>();
+    }
+
+    public static LNChatResponseDTO fromJson(String jsonString) {
+        if (String.isBlank(jsonString)) {
+            return buildErrorDTO('Empty response from AI service');
+        }
+
+        LNChatResponseDTO dto = new LNChatResponseDTO();
+        dto.rawJson = jsonString;
+
+        try {
+            Map<String, Object> parsed = (Map<String, Object>) JSON.deserializeUntyped(jsonString);
+
+            dto.responseType = (String) parsed.get('responseType');
+            dto.title = (String) parsed.get('title');
+            dto.summary = (String) parsed.get('summary');
+
+            Object dataObj = parsed.get('data');
+            if (dataObj instanceof Map<String, Object>) {
+                dto.data = (Map<String, Object>) dataObj;
+            } else {
+                dto.data = new Map<String, Object>();
+            }
+
+            Object actionsObj = parsed.get('actions');
+            dto.actions = new List<ActionDTO>();
+            if (actionsObj instanceof List<Object>) {
+                for (Object actionItem : (List<Object>) actionsObj) {
+                    if (actionItem instanceof Map<String, Object>) {
+                        Map<String, Object> actionMap = (Map<String, Object>) actionItem;
+                        ActionDTO action = new ActionDTO();
+                        action.label = (String) actionMap.get('label');
+                        action.flowApiName = (String) actionMap.get('flowApiName');
+                        Object inputVarsObj = actionMap.get('inputVariables');
+                        if (inputVarsObj instanceof Map<String, Object>) {
+                            action.inputVariables = (Map<String, Object>) inputVarsObj;
+                        }
+                        dto.actions.add(action);
+                    }
+                }
+            }
+
+            if (String.isBlank(dto.responseType)) {
+                dto.responseType = 'summary';
+            }
+
+        } catch (Exception e) {
+            return buildErrorDTO('Failed to parse AI response: ' + e.getMessage());
+        }
+
+        return dto;
+    }
+
+    private static LNChatResponseDTO buildErrorDTO(String errorMessage) {
+        LNChatResponseDTO dto = new LNChatResponseDTO();
+        dto.responseType = 'alert';
+        dto.title = 'Error';
+        dto.summary = errorMessage;
+        dto.data = new Map<String, Object>{
+            'severity' => 'critical',
+            'alertTitle' => 'AI Response Error',
+            'message' => errorMessage,
+            'details' => new List<String>{ errorMessage }
+        };
+        dto.actions = new List<ActionDTO>();
+        dto.rawJson = '{}';
+        return dto;
+    }
+}
+
+================================================================================
+APEX CLASS: LNChatContextBuilderService.cls
+================================================================================
+
+public with sharing class LNChatContextBuilderService {
+
+    public Map<String, Object> buildContext(String recordId, String objectApiName) {
+        Map<String, Object> context = new Map<String, Object>();
+
+        if (String.isBlank(recordId) || String.isBlank(objectApiName)) {
+            context.put('error', 'Missing recordId or objectApiName');
+            return context;
+        }
+
+        context.put('objectApiName', objectApiName);
+        context.put('recordId', recordId);
+
+        Map<String, Object> sfRecord = querySalesforceRecord(recordId, objectApiName);
+        context.put('salesforceRecord', sfRecord);
+
+        Map<String, Object> relatedRecords = queryRelatedRecords(recordId, objectApiName, sfRecord);
+        context.put('relatedRecords', relatedRecords);
+
+        String externalId = extractExternalId(sfRecord, objectApiName);
+
+        LNChatERPService erpService = new LNChatERPService();
+        Map<String, Object> erpData;
+        try {
+            erpData = erpService.getRecordData(externalId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'ERP data fetch failed: ' + e.getMessage());
+            erpData = new Map<String, Object>{ 'available' => false, 'reason' => e.getMessage() };
+        }
+        context.put('erpData', erpData);
+
+        LNChatBIService biService = new LNChatBIService();
+        Map<String, Object> biData;
+        try {
+            biData = biService.getMetrics(externalId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'BI data fetch failed: ' + e.getMessage());
+            biData = new Map<String, Object>{ 'available' => false, 'reason' => e.getMessage() };
+        }
+        context.put('biData', biData);
+
+        context.put('contextBuildTimestamp', String.valueOf(System.now()));
+
+        return context;
+    }
+
+    private Map<String, Object> querySalesforceRecord(String recordId, String objectApiName) {
+        Map<String, Object> result = new Map<String, Object>();
+
+        try {
+            Schema.SObjectType sObjType = Schema.getGlobalDescribe().get(objectApiName);
+            if (sObjType == null) {
+                result.put('error', 'Unknown object type: ' + objectApiName);
+                return result;
+            }
+
+            Schema.DescribeSObjectResult describeResult = sObjType.getDescribe();
+            Map<String, Schema.SObjectField> fieldMap = describeResult.fields.getMap();
+
+            List<String> queryableFields = new List<String>();
+            for (String fieldName : fieldMap.keySet()) {
+                Schema.DescribeFieldResult fieldDescribe = fieldMap.get(fieldName).getDescribe();
+                if (fieldDescribe.isAccessible() && !fieldDescribe.isCalculated()) {
+                    queryableFields.add(fieldName);
+                }
+            }
+
+            if (queryableFields.isEmpty()) {
+                queryableFields.add('Id');
+            }
+
+            String soql = 'SELECT ' + String.join(queryableFields, ', ')
+                + ' FROM ' + objectApiName
+                + ' WHERE Id = :recordId'
+                + ' LIMIT 1';
+
+            List<SObject> records = Database.query(soql);
+            if (!records.isEmpty()) {
+                Map<String, Object> populatedFields = records[0].getPopulatedFieldsAsMap();
+                for (String key : populatedFields.keySet()) {
+                    result.put(key, populatedFields.get(key));
+                }
+            }
+
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, 'querySalesforceRecord failed: ' + e.getMessage());
+            result.put('error', e.getMessage());
+        }
+
+        return result;
+    }
+
+    private Map<String, Object> queryRelatedRecords(String recordId, String objectApiName, Map<String, Object> sfRecord) {
+        Map<String, Object> related = new Map<String, Object>();
+
+        if (objectApiName == 'Account') {
+            related.putAll(queryAccountRelated(recordId));
+        } else if (objectApiName == 'Contact') {
+            related.putAll(queryContactRelated(recordId, sfRecord));
+        } else if (objectApiName == 'Opportunity') {
+            related.putAll(queryOpportunityRelated(recordId, sfRecord));
+        } else if (objectApiName == 'Case') {
+            related.putAll(queryCaseRelated(recordId));
+        } else if (objectApiName == 'Lead') {
+            related.putAll(queryLeadRelated(recordId));
+        }
+
+        return related;
+    }
+
+    // ─── Account ─────────────────────────────────────────────────────────────
+
+    private Map<String, Object> queryAccountRelated(String accountId) {
+        Map<String, Object> related = new Map<String, Object>();
+
+        try {
+            related.put('contacts', convertToMapList([
+                SELECT Id, Name, Title, Email, Phone, Department, LastActivityDate
+                FROM Contact
+                WHERE AccountId = :accountId
+                ORDER BY LastActivityDate DESC NULLS LAST
+                LIMIT 10
+            ]));
+        } catch (Exception e) { related.put('contacts_error', e.getMessage()); }
+
+        try {
+            related.put('opportunities', convertToMapList([
+                SELECT Id, Name, StageName, Amount, CloseDate, Probability, Type, OwnerId
+                FROM Opportunity
+                WHERE AccountId = :accountId AND IsClosed = false
+                ORDER BY CloseDate ASC
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('opportunities_error', e.getMessage()); }
+
+        try {
+            related.put('cases', convertToMapList([
+                SELECT Id, CaseNumber, Subject, Status, Priority, Type, Origin, CreatedDate
+                FROM Case
+                WHERE AccountId = :accountId AND Status NOT IN ('Closed', 'Resolved')
+                ORDER BY CreatedDate DESC
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('cases_error', e.getMessage()); }
+
+        try {
+            related.put('tasks', convertToMapList([
+                SELECT Id, Subject, Status, Priority, ActivityDate, Description
+                FROM Task
+                WHERE WhatId = :accountId AND Status NOT IN ('Completed', 'Cancelled')
+                ORDER BY ActivityDate ASC NULLS LAST
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('tasks_error', e.getMessage()); }
+
+        try {
+            related.put('orders', convertToMapList([
+                SELECT Id, OrderNumber, Status, TotalAmount, EffectiveDate, EndDate, Type
+                FROM Order
+                WHERE AccountId = :accountId
+                ORDER BY EffectiveDate DESC NULLS LAST
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('orders_error', e.getMessage()); }
+
+        try {
+            related.put('contracts', convertToMapList([
+                SELECT Id, ContractNumber, Status, StartDate, EndDate, ContractTerm
+                FROM Contract
+                WHERE AccountId = :accountId
+                ORDER BY StartDate DESC NULLS LAST
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('contracts_error', e.getMessage()); }
+
+        try {
+            related.put('quotes', convertToMapList([
+                SELECT Id, Name, Status, GrandTotal, ExpirationDate, CreatedDate
+                FROM Quote
+                WHERE Account.Id = :accountId
+                ORDER BY CreatedDate DESC
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('quotes_error', e.getMessage()); }
+
+        return related;
+    }
+
+    // ─── Contact ─────────────────────────────────────────────────────────────
+
+    private Map<String, Object> queryContactRelated(String contactId, Map<String, Object> sfRecord) {
+        Map<String, Object> related = new Map<String, Object>();
+
+        try {
+            related.put('opportunities', convertToMapList([
+                SELECT Id, Name, StageName, Amount, CloseDate, Probability, Type
+                FROM Opportunity
+                WHERE Id IN (
+                    SELECT OpportunityId FROM OpportunityContactRole WHERE ContactId = :contactId
+                )
+                AND IsClosed = false
+                ORDER BY CloseDate ASC
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('opportunities_error', e.getMessage()); }
+
+        try {
+            related.put('cases', convertToMapList([
+                SELECT Id, CaseNumber, Subject, Status, Priority, CreatedDate
+                FROM Case
+                WHERE ContactId = :contactId AND Status NOT IN ('Closed', 'Resolved')
+                ORDER BY CreatedDate DESC
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('cases_error', e.getMessage()); }
+
+        try {
+            related.put('tasks', convertToMapList([
+                SELECT Id, Subject, Status, Priority, ActivityDate, Description
+                FROM Task
+                WHERE WhoId = :contactId AND Status NOT IN ('Completed', 'Cancelled')
+                ORDER BY ActivityDate ASC NULLS LAST
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('tasks_error', e.getMessage()); }
+
+        String accountId = (String) sfRecord.get('AccountId');
+        if (String.isNotBlank(accountId)) {
+            try {
+                List<Account> accs = [
+                    SELECT Id, Name, Industry, Phone, BillingCity, BillingState, AnnualRevenue, NumberOfEmployees
+                    FROM Account WHERE Id = :accountId LIMIT 1
+                ];
+                if (!accs.isEmpty()) {
+                    related.put('account', accs[0].getPopulatedFieldsAsMap());
+                }
+            } catch (Exception e) { related.put('account_error', e.getMessage()); }
+        }
+
+        return related;
+    }
+
+    // ─── Opportunity ─────────────────────────────────────────────────────────
+
+    private Map<String, Object> queryOpportunityRelated(String oppId, Map<String, Object> sfRecord) {
+        Map<String, Object> related = new Map<String, Object>();
+
+        try {
+            related.put('contacts', convertOCRToMapList([
+                SELECT ContactId, Contact.Name, Contact.Title, Contact.Email, Contact.Phone, Role, IsPrimary
+                FROM OpportunityContactRole
+                WHERE OpportunityId = :oppId
+                LIMIT 10
+            ]));
+        } catch (Exception e) { related.put('contacts_error', e.getMessage()); }
+
+        try {
+            related.put('tasks', convertToMapList([
+                SELECT Id, Subject, Status, Priority, ActivityDate, Description
+                FROM Task
+                WHERE WhatId = :oppId AND Status NOT IN ('Completed', 'Cancelled')
+                ORDER BY ActivityDate ASC NULLS LAST
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('tasks_error', e.getMessage()); }
+
+        try {
+            related.put('quotes', convertToMapList([
+                SELECT Id, Name, Status, GrandTotal, ExpirationDate, CreatedDate
+                FROM Quote
+                WHERE OpportunityId = :oppId
+                ORDER BY CreatedDate DESC
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('quotes_error', e.getMessage()); }
+
+        String accountId = (String) sfRecord.get('AccountId');
+        if (String.isNotBlank(accountId)) {
+            try {
+                List<Account> accs = [
+                    SELECT Id, Name, Industry, Phone, BillingCity, AnnualRevenue
+                    FROM Account WHERE Id = :accountId LIMIT 1
+                ];
+                if (!accs.isEmpty()) {
+                    related.put('account', accs[0].getPopulatedFieldsAsMap());
+                }
+            } catch (Exception e) { related.put('account_error', e.getMessage()); }
+
+            try {
+                related.put('orders', convertToMapList([
+                    SELECT Id, OrderNumber, Status, TotalAmount, EffectiveDate
+                    FROM Order WHERE AccountId = :accountId
+                    ORDER BY EffectiveDate DESC NULLS LAST LIMIT 5
+                ]));
+            } catch (Exception e) { related.put('orders_error', e.getMessage()); }
+        }
+
+        return related;
+    }
+
+    // ─── Case ─────────────────────────────────────────────────────────────────
+
+    private Map<String, Object> queryCaseRelated(String caseId) {
+        Map<String, Object> related = new Map<String, Object>();
+
+        try {
+            related.put('tasks', convertToMapList([
+                SELECT Id, Subject, Status, Priority, ActivityDate, Description
+                FROM Task
+                WHERE WhatId = :caseId AND Status NOT IN ('Completed', 'Cancelled')
+                ORDER BY ActivityDate ASC NULLS LAST
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('tasks_error', e.getMessage()); }
+
+        return related;
+    }
+
+    // ─── Lead ─────────────────────────────────────────────────────────────────
+
+    private Map<String, Object> queryLeadRelated(String leadId) {
+        Map<String, Object> related = new Map<String, Object>();
+
+        try {
+            related.put('tasks', convertToMapList([
+                SELECT Id, Subject, Status, Priority, ActivityDate, Description
+                FROM Task
+                WHERE WhoId = :leadId AND Status NOT IN ('Completed', 'Cancelled')
+                ORDER BY ActivityDate ASC NULLS LAST
+                LIMIT 5
+            ]));
+        } catch (Exception e) { related.put('tasks_error', e.getMessage()); }
+
+        return related;
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    private List<Map<String, Object>> convertToMapList(List<SObject> records) {
+        List<Map<String, Object>> result = new List<Map<String, Object>>();
+        for (SObject record : records) {
+            result.add(record.getPopulatedFieldsAsMap());
+        }
+        return result;
+    }
+
+    private List<Map<String, Object>> convertOCRToMapList(List<OpportunityContactRole> roles) {
+        List<Map<String, Object>> result = new List<Map<String, Object>>();
+        for (OpportunityContactRole ocr : roles) {
+            Map<String, Object> row = new Map<String, Object>{
+                'contactId' => ocr.ContactId,
+                'role'      => ocr.Role,
+                'isPrimary' => ocr.IsPrimary
+            };
+            if (ocr.Contact != null) {
+                row.put('name',  ocr.Contact.Name);
+                row.put('title', ocr.Contact.Title);
+                row.put('email', ocr.Contact.Email);
+                row.put('phone', ocr.Contact.Phone);
+            }
+            result.add(row);
+        }
+        return result;
+    }
+
+    private String extractExternalId(Map<String, Object> sfRecord, String objectApiName) {
+        Object sourceId = sfRecord.get('SourceSystemIdentifier__c');
+        if (sourceId != null && String.isNotBlank(String.valueOf(sourceId))) {
+            return String.valueOf(sourceId);
+        }
+
+        Object extId = sfRecord.get('External_Id__c');
+        if (extId != null && String.isNotBlank(String.valueOf(extId))) {
+            return String.valueOf(extId);
+        }
+
+        Object recordId = sfRecord.get('Id');
+        return recordId != null ? String.valueOf(recordId) : '';
+    }
+}
+
+================================================================================
+APEX CLASS: LNChatRecordActionService.cls
+================================================================================
+
+public with sharing class LNChatRecordActionService {
+
+    private static final Set<String> ALLOWED_OBJECTS = new Set<String>{
+        'Account', 'Contact', 'Task', 'Case', 'Opportunity', 'Quote'
+    };
+
+    public static Map<String, Object> executeAction(
+        String objectApiName,
+        String operation,
+        String recordId,
+        Map<String, Object> fields,
+        String currentPageRecordId
+    ) {
+        return executeAction(objectApiName, operation, recordId, fields, currentPageRecordId, false);
+    }
+
+    public static Map<String, Object> executeAction(
+        String objectApiName,
+        String operation,
+        String recordId,
+        Map<String, Object> fields,
+        String currentPageRecordId,
+        Boolean bypassDuplicate
+    ) {
+        if (String.isBlank(objectApiName) || !ALLOWED_OBJECTS.contains(objectApiName)) {
+            throw new AuraHandledException('Unsupported object: ' + objectApiName);
+        }
+        if (String.isBlank(operation)) {
+            throw new AuraHandledException('Operation is required');
+        }
+        if (fields == null || fields.isEmpty()) {
+            throw new AuraHandledException('No fields provided');
+        }
+
+        String opLower = operation.toLowerCase();
+        Boolean skipDupCheck = bypassDuplicate == true;
+
+        // For UPDATE: check ambiguity only when not bypassing and not the current page record
+        Boolean isCurrentPageRecord = String.isNotBlank(currentPageRecordId)
+            && String.isNotBlank(recordId)
+            && currentPageRecordId.equals(recordId);
+
+        if (!skipDupCheck && opLower == 'update' && String.isNotBlank(recordId) && !isCurrentPageRecord) {
+            try {
+                List<Map<String, Object>> ambiguous = findAmbiguousTargets(objectApiName, recordId);
+                if (!ambiguous.isEmpty()) {
+                    return new Map<String, Object>{
+                        'success'     => false,
+                        'isDuplicate' => true,
+                        'isAmbiguous' => true,
+                        'duplicates'  => ambiguous
+                    };
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, 'Ambiguous target check failed: ' + e.getMessage());
+            }
+        }
+
+        // Check for value collisions — skip when user has chosen to bypass
+        if (!skipDupCheck) {
+            String excludeId = String.isNotBlank(recordId) ? recordId : 'NONE_ID';
+            List<Map<String, Object>> duplicates = findDuplicates(objectApiName, fields, excludeId);
+            if (!duplicates.isEmpty()) {
+                return new Map<String, Object>{
+                    'success'     => false,
+                    'isDuplicate' => true,
+                    'isAmbiguous' => false,
+                    'duplicates'  => duplicates
+                };
+            }
+        }
+
+        if (opLower == 'create') {
+            return doCreate(objectApiName, fields);
+        } else if (opLower == 'update') {
+            if (String.isBlank(recordId)) {
+                throw new AuraHandledException('recordId is required for update');
+            }
+            return doUpdate(objectApiName, recordId, fields);
+        } else {
+            throw new AuraHandledException('Unsupported operation: ' + operation);
+        }
+    }
+
+    // ─── Ambiguous Target (UPDATE only) ──────────────────────────────────────
+
+    private static List<Map<String, Object>> findAmbiguousTargets(String objectApiName, String recordId) {
+        if (objectApiName == 'Contact') {
+            List<Contact> targets = [SELECT FirstName, LastName FROM Contact WHERE Id = :recordId LIMIT 1];
+            if (targets.isEmpty() || String.isBlank(targets[0].LastName)) return new List<Map<String, Object>>();
+            String lastName  = targets[0].LastName;
+            String firstName = targets[0].FirstName;
+            String soql = 'SELECT Id, Name, Email, Phone, Account.Name FROM Contact'
+                        + ' WHERE LastName = :lastName AND Id != :recordId';
+            if (String.isNotBlank(firstName)) soql += ' AND FirstName = :firstName';
+            soql += ' LIMIT 5';
+            List<Map<String, Object>> results = new List<Map<String, Object>>();
+            for (Contact c : (List<Contact>) Database.query(soql)) {
+                results.add(new Map<String, Object>{
+                    'id' => c.Id, 'name' => c.Name, 'email' => c.Email,
+                    'phone' => c.Phone, 'account' => c.Account != null ? c.Account.Name : null
+                });
+            }
+            return results;
+
+        } else if (objectApiName == 'Account') {
+            List<Account> targets = [SELECT Name FROM Account WHERE Id = :recordId LIMIT 1];
+            if (targets.isEmpty() || String.isBlank(targets[0].Name)) return new List<Map<String, Object>>();
+            String name = targets[0].Name;
+            List<Map<String, Object>> results = new List<Map<String, Object>>();
+            for (Account a : [SELECT Id, Name, Phone, BillingCity, BillingState FROM Account WHERE Name = :name AND Id != :recordId LIMIT 5]) {
+                results.add(new Map<String, Object>{
+                    'id' => a.Id, 'name' => a.Name, 'phone' => a.Phone,
+                    'city' => a.BillingCity, 'state' => a.BillingState
+                });
+            }
+            return results;
+
+        } else if (objectApiName == 'Opportunity') {
+            List<Opportunity> targets = [SELECT Name, AccountId FROM Opportunity WHERE Id = :recordId LIMIT 1];
+            if (targets.isEmpty() || String.isBlank(targets[0].Name)) return new List<Map<String, Object>>();
+            String name      = targets[0].Name;
+            String accountId = targets[0].AccountId;
+            List<Map<String, Object>> results = new List<Map<String, Object>>();
+            for (Opportunity o : [SELECT Id, Name, StageName, CloseDate, Account.Name FROM Opportunity WHERE Name = :name AND AccountId = :accountId AND Id != :recordId LIMIT 5]) {
+                results.add(new Map<String, Object>{
+                    'id' => o.Id, 'name' => o.Name, 'stage' => o.StageName,
+                    'close' => String.valueOf(o.CloseDate), 'account' => o.Account != null ? o.Account.Name : null
+                });
+            }
+            return results;
+
+        } else if (objectApiName == 'Quote') {
+            List<Quote> targets = [SELECT Name, OpportunityId FROM Quote WHERE Id = :recordId LIMIT 1];
+            if (targets.isEmpty() || String.isBlank(targets[0].Name)) return new List<Map<String, Object>>();
+            String name  = targets[0].Name;
+            String oppId = targets[0].OpportunityId;
+            List<Map<String, Object>> results = new List<Map<String, Object>>();
+            for (Quote q : [SELECT Id, Name, Status, ExpirationDate FROM Quote WHERE Name = :name AND OpportunityId = :oppId AND Id != :recordId LIMIT 5]) {
+                results.add(new Map<String, Object>{
+                    'id' => q.Id, 'name' => q.Name, 'status' => q.Status,
+                    'expiry' => q.ExpirationDate != null ? String.valueOf(q.ExpirationDate) : null
+                });
+            }
+            return results;
+
+        } else if (objectApiName == 'Lead') {
+            List<Lead> targets = [SELECT FirstName, LastName, Company FROM Lead WHERE Id = :recordId LIMIT 1];
+            if (targets.isEmpty() || String.isBlank(targets[0].LastName)) return new List<Map<String, Object>>();
+            String lastName  = targets[0].LastName;
+            String firstName = targets[0].FirstName;
+            String soql = 'SELECT Id, Name, Email, Phone, Company FROM Lead'
+                        + ' WHERE LastName = :lastName AND IsConverted = false AND Id != :recordId';
+            if (String.isNotBlank(firstName)) soql += ' AND FirstName = :firstName';
+            soql += ' LIMIT 5';
+            List<Map<String, Object>> results = new List<Map<String, Object>>();
+            for (Lead l : (List<Lead>) Database.query(soql)) {
+                results.add(new Map<String, Object>{
+                    'id' => l.Id, 'name' => l.Name, 'email' => l.Email,
+                    'phone' => l.Phone, 'company' => l.Company
+                });
+            }
+            return results;
+        }
+
+        return new List<Map<String, Object>>();
+    }
+
+    // ─── Duplicate Detection ──────────────────────────────────────────────────
+
+    private static List<Map<String, Object>> findDuplicates(
+        String objectApiName,
+        Map<String, Object> fields,
+        String excludeId
+    ) {
+        try {
+            if (objectApiName == 'Account')     return findAccountDuplicates(fields, excludeId);
+            if (objectApiName == 'Contact')     return findContactDuplicates(fields, excludeId);
+            if (objectApiName == 'Lead')        return findLeadDuplicates(fields, excludeId);
+            if (objectApiName == 'Opportunity') return findOpportunityDuplicates(fields, excludeId);
+            if (objectApiName == 'Case')        return findCaseDuplicates(fields, excludeId);
+            if (objectApiName == 'Quote')       return findQuoteDuplicates(fields, excludeId);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.WARN, 'Duplicate check failed for ' + objectApiName + ': ' + e.getMessage());
+        }
+        return new List<Map<String, Object>>();
+    }
+
+    private static List<Map<String, Object>> findAccountDuplicates(Map<String, Object> fields, String excludeId) {
+        String name = strVal(fields, 'Name');
+        if (String.isBlank(name)) return new List<Map<String, Object>>();
+        List<Map<String, Object>> results = new List<Map<String, Object>>();
+        for (Account a : [SELECT Id, Name, Phone, BillingCity, BillingState, Website FROM Account WHERE Name = :name AND Id != :excludeId LIMIT 5]) {
+            results.add(new Map<String, Object>{
+                'id' => a.Id, 'name' => a.Name, 'phone' => a.Phone,
+                'city' => a.BillingCity, 'state' => a.BillingState, 'website' => a.Website
+            });
+        }
+        return results;
+    }
+
+    private static List<Map<String, Object>> findContactDuplicates(Map<String, Object> fields, String excludeId) {
+        List<Map<String, Object>> results = new List<Map<String, Object>>();
+        String email = strVal(fields, 'Email');
+        if (String.isNotBlank(email)) {
+            for (Contact c : [SELECT Id, Name, Email, Phone, Account.Name FROM Contact WHERE Email = :email AND Id != :excludeId LIMIT 5]) {
+                results.add(new Map<String, Object>{
+                    'id' => c.Id, 'name' => c.Name, 'email' => c.Email,
+                    'phone' => c.Phone, 'account' => c.Account != null ? c.Account.Name : null
+                });
+            }
+        }
+        if (results.isEmpty()) {
+            String firstName = strVal(fields, 'FirstName');
+            String lastName  = strVal(fields, 'LastName');
+            String accountId = strVal(fields, 'AccountId');
+            if (String.isNotBlank(lastName) && String.isNotBlank(accountId)) {
+                String soql = 'SELECT Id, Name, Email, Phone, Account.Name FROM Contact'
+                    + ' WHERE LastName = :lastName AND Id != :excludeId AND AccountId = :accountId';
+                if (String.isNotBlank(firstName)) soql += ' AND FirstName = :firstName';
+                soql += ' LIMIT 5';
+                for (Contact c : (List<Contact>) Database.query(soql)) {
+                    results.add(new Map<String, Object>{
+                        'id' => c.Id, 'name' => c.Name, 'email' => c.Email,
+                        'phone' => c.Phone, 'account' => c.Account != null ? c.Account.Name : null
+                    });
+                }
+            }
+        }
+        return results;
+    }
+
+    private static List<Map<String, Object>> findLeadDuplicates(Map<String, Object> fields, String excludeId) {
+        List<Map<String, Object>> results = new List<Map<String, Object>>();
+        String email = strVal(fields, 'Email');
+        if (String.isNotBlank(email)) {
+            for (Lead l : [SELECT Id, Name, Email, Phone, Company FROM Lead WHERE Email = :email AND Id != :excludeId AND IsConverted = false LIMIT 5]) {
+                results.add(new Map<String, Object>{ 'id' => l.Id, 'name' => l.Name, 'email' => l.Email, 'phone' => l.Phone, 'company' => l.Company });
+            }
+        }
+        if (results.isEmpty()) {
+            String lastName = strVal(fields, 'LastName');
+            String company  = strVal(fields, 'Company');
+            if (String.isNotBlank(lastName) && String.isNotBlank(company)) {
+                for (Lead l : [SELECT Id, Name, Email, Phone, Company FROM Lead WHERE LastName = :lastName AND Company = :company AND Id != :excludeId AND IsConverted = false LIMIT 5]) {
+                    results.add(new Map<String, Object>{ 'id' => l.Id, 'name' => l.Name, 'email' => l.Email, 'phone' => l.Phone, 'company' => l.Company });
+                }
+            }
+        }
+        return results;
+    }
+
+    private static List<Map<String, Object>> findOpportunityDuplicates(Map<String, Object> fields, String excludeId) {
+        String name      = strVal(fields, 'Name');
+        String accountId = strVal(fields, 'AccountId');
+        if (String.isBlank(name) || String.isBlank(accountId)) return new List<Map<String, Object>>();
+        List<Map<String, Object>> results = new List<Map<String, Object>>();
+        for (Opportunity o : [SELECT Id, Name, StageName, CloseDate, Amount, Account.Name FROM Opportunity WHERE Name = :name AND AccountId = :accountId AND Id != :excludeId LIMIT 5]) {
+            results.add(new Map<String, Object>{
+                'id' => o.Id, 'name' => o.Name, 'stage' => o.StageName,
+                'close' => String.valueOf(o.CloseDate), 'amount' => o.Amount != null ? String.valueOf(o.Amount) : null,
+                'account' => o.Account != null ? o.Account.Name : null
+            });
+        }
+        return results;
+    }
+
+    private static List<Map<String, Object>> findCaseDuplicates(Map<String, Object> fields, String excludeId) {
+        String subject   = strVal(fields, 'Subject');
+        String accountId = strVal(fields, 'AccountId');
+        if (String.isBlank(subject) || String.isBlank(accountId)) return new List<Map<String, Object>>();
+        List<Map<String, Object>> results = new List<Map<String, Object>>();
+        for (Case c : [SELECT Id, CaseNumber, Subject, Status, Priority, Account.Name FROM Case WHERE Subject = :subject AND AccountId = :accountId AND Id != :excludeId LIMIT 5]) {
+            results.add(new Map<String, Object>{
+                'id' => c.Id, 'number' => c.CaseNumber, 'subject' => c.Subject,
+                'status' => c.Status, 'account' => c.Account != null ? c.Account.Name : null
+            });
+        }
+        return results;
+    }
+
+    private static List<Map<String, Object>> findQuoteDuplicates(Map<String, Object> fields, String excludeId) {
+        String name  = strVal(fields, 'Name');
+        String oppId = strVal(fields, 'OpportunityId');
+        if (String.isBlank(name) || String.isBlank(oppId)) return new List<Map<String, Object>>();
+        List<Map<String, Object>> results = new List<Map<String, Object>>();
+        for (Quote q : [SELECT Id, Name, Status, ExpirationDate, OpportunityId FROM Quote WHERE Name = :name AND OpportunityId = :oppId AND Id != :excludeId LIMIT 5]) {
+            results.add(new Map<String, Object>{
+                'id' => q.Id, 'name' => q.Name, 'status' => q.Status,
+                'expiry' => q.ExpirationDate != null ? String.valueOf(q.ExpirationDate) : null
+            });
+        }
+        return results;
+    }
+
+    // ─── DML ──────────────────────────────────────────────────────────────────
+
+    private static Map<String, Object> doCreate(String objectApiName, Map<String, Object> fields) {
+        SObject record = Schema.getGlobalDescribe().get(objectApiName).newSObject();
+        applyFields(record, objectApiName, fields);
+        insert record;
+        return new Map<String, Object>{ 'recordId' => record.Id, 'success' => true };
+    }
+
+    private static Map<String, Object> doUpdate(String objectApiName, String recordId, Map<String, Object> fields) {
+        SObject record = Schema.getGlobalDescribe().get(objectApiName).newSObject(recordId);
+        applyFields(record, objectApiName, fields);
+        update record;
+        return new Map<String, Object>{ 'recordId' => recordId, 'success' => true };
+    }
+
+    private static void applyFields(SObject record, String objectApiName, Map<String, Object> fields) {
+        Map<String, Schema.SObjectField> fieldMap =
+            Schema.getGlobalDescribe().get(objectApiName).getDescribe().fields.getMap();
+
+        for (String fieldName : fields.keySet()) {
+            Schema.SObjectField fieldToken = fieldMap.get(fieldName.toLowerCase());
+            if (fieldToken == null) continue;
+            Schema.DescribeFieldResult fd = fieldToken.getDescribe();
+            if (!fd.isCreateable()) continue;
+            Object rawValue = fields.get(fieldName);
+            if (rawValue == null) continue;
+            String strValue = String.valueOf(rawValue);
+            if (String.isBlank(strValue)) continue;
+            try {
+                Schema.DisplayType ft = fd.getType();
+                if (ft == Schema.DisplayType.DATE) {
+                    record.put(fieldName, Date.valueOf(strValue));
+                } else if (ft == Schema.DisplayType.DATETIME) {
+                    record.put(fieldName, DateTime.valueOf(strValue));
+                } else if (ft == Schema.DisplayType.DOUBLE
+                        || ft == Schema.DisplayType.CURRENCY
+                        || ft == Schema.DisplayType.PERCENT) {
+                    record.put(fieldName, Double.valueOf(strValue));
+                } else if (ft == Schema.DisplayType.INTEGER) {
+                    record.put(fieldName, Integer.valueOf(strValue));
+                } else if (ft == Schema.DisplayType.BOOLEAN) {
+                    record.put(fieldName, Boolean.valueOf(strValue));
+                } else {
+                    record.put(fieldName, strValue);
+                }
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, 'LNChatRecordActionService: skipping field ' + fieldName + ': ' + e.getMessage());
+            }
+        }
+    }
+
+    // ─── Utility ──────────────────────────────────────────────────────────────
+
+    private static String strVal(Map<String, Object> fields, String key) {
+        Object val = fields.get(key);
+        return val != null ? String.valueOf(val).trim() : '';
+    }
+}
+
+================================================================================
+APEX CLASS META FILES (all identical format, apiVersion 62.0, status Active)
+================================================================================
+
+<!-- each cls-meta.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <status>Active</status>
+</ApexClass>
+
+================================================================================
+LWC: lnchatShell
+================================================================================
+
+--- lnchatShell.js-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>true</isExposed>
+    <targets>
+        <target>lightning__UtilityBar</target>
+        <target>lightning__AppPage</target>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__UtilityBar">
+            <property
+                name="label"
+                type="String"
+                default="AI Assistant"
+                label="Utility Bar Label"
+            />
+        </targetConfig>
+        <targetConfig targets="lightning__RecordPage">
+            <objects>
+                <object>Account</object>
+                <object>Opportunity</object>
+                <object>Case</object>
+                <object>Lead</object>
+                <object>Contact</object>
+            </objects>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>
+
+--- lnchatShell.js ---
+import { LightningElement, api, wire, track } from 'lwc';
+import { CurrentPageReference, NavigationMixin } from 'lightning/navigation';
+import sendMessage from '@salesforce/apex/LNChatController.sendMessage';
+import getConversationHistory from '@salesforce/apex/LNChatController.getConversationHistory';
+import clearConversationHistory from '@salesforce/apex/LNChatController.clearConversationHistory';
+import executeRecordAction from '@salesforce/apex/LNChatController.executeRecordAction';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+
+const OBJECT_LABELS = {
+    Account: 'Account',
+    Opportunity: 'Opportunity',
+    Case: 'Case',
+    Lead: 'Lead',
+    Contact: 'Contact'
+};
+
+export default class LnchatShell extends NavigationMixin(LightningElement) {
+    @api label = 'AI Assistant';
+    @api displayMode = 'utility'; // 'utility' | 'sidebar' | 'drawer'
+
+    @track recordId = '';
+    @track objectApiName = '';
+    @track isLoading = false;
+    @track isMinimized = false;
+    @track conversationHistory = [];
+
+    _pendingBypassAction = null;
+
+    @wire(CurrentPageReference)
+    handlePageRef(pageRef) {
+        if (!pageRef) return;
+
+        const attrs = pageRef.attributes || {};
+        const newRecordId = attrs.recordId || '';
+        const newObjectApiName = attrs.objectApiName || '';
+
+        if (newRecordId !== this.recordId) {
+            this.recordId = newRecordId;
+            this.objectApiName = newObjectApiName;
+            this.conversationHistory = [];
+
+            if (this.recordId) {
+                this.loadHistory();
+            } else {
+                const history = this.template.querySelector('c-lnchat-history');
+                if (history) history.clearMessages();
+            }
+        }
+    }
+
+    get hasRecord() {
+        return !!this.recordId;
+    }
+
+    get contextLabel() {
+        const label = OBJECT_LABELS[this.objectApiName] || this.objectApiName;
+        return label ? label + ' record' : 'Current record';
+    }
+
+    get isSidebar() {
+        return this.displayMode === 'sidebar';
+    }
+
+    get isDrawer() {
+        return this.displayMode === 'drawer';
+    }
+
+    get panelClass() {
+        let cls = 'chatbot-panel';
+        if (this.isDrawer) cls += ' panel-drawer';
+        else if (this.isSidebar) cls += ' panel-sidebar';
+        else if (this.isMinimized) cls += ' panel-minimized';
+        return cls;
+    }
+
+    async loadHistory() {
+        try {
+            const history = await getConversationHistory({ recordId: this.recordId });
+            const historyEl = this.template.querySelector('c-lnchat-history');
+            if (!historyEl) return;
+
+            historyEl.clearMessages();
+            this.conversationHistory = [];
+
+            for (const msg of history) {
+                historyEl.addMessage(msg.role, msg.content, msg.responseType);
+                this.conversationHistory.push({ role: msg.role, content: msg.content });
+            }
+        } catch (e) {
+            // Silently fail on history load — non-critical
+        }
+    }
+
+    async handleMessageSend(event) {
+        const { message: userMessage, attachment } = event.detail;
+        if ((!userMessage && !attachment) || this.isLoading) return;
+
+        const historyEl = this.template.querySelector('c-lnchat-history');
+        if (historyEl) {
+            historyEl.addMessage('user', userMessage || '', null, attachment ? attachment.name : null);
+        }
+
+        const historyContent = userMessage || (attachment ? '[File: ' + attachment.name + ']' : '');
+        this.conversationHistory.push({ role: 'user', content: historyContent });
+        this.isLoading = true;
+
+        try {
+            const historyJson = JSON.stringify(
+                this.conversationHistory.slice(-10).map((m) => ({
+                    role: m.role,
+                    content: m.content
+                }))
+            );
+
+            const result = await sendMessage({
+                userMessage: userMessage || '',
+                recordId: this.recordId || null,
+                objectApiName: this.objectApiName || null,
+                conversationHistoryJson: historyJson,
+                attachmentJson: attachment ? JSON.stringify(attachment) : null
+            });
+
+            const assistantContent = result.rawJson || JSON.stringify({
+                responseType: result.responseType,
+                title: result.title,
+                summary: result.summary,
+                data: result.data,
+                actions: result.actions
+            });
+
+            if (historyEl) {
+                historyEl.addMessage('assistant', assistantContent, result.responseType);
+            }
+
+            this.conversationHistory.push({ role: 'assistant', content: assistantContent });
+
+        } catch (error) {
+            // Remove the user message we just added so failed attempts don't inflate history
+            this.conversationHistory.pop();
+
+            const errorMsg = error.body ? error.body.message : (error.message || 'Unknown error');
+            this.dispatchEvent(new ShowToastEvent({
+                title: 'AI Assistant Error',
+                message: errorMsg,
+                variant: 'error',
+                mode: 'dismissable'
+            }));
+
+            if (historyEl) {
+                const errorJson = JSON.stringify({
+                    responseType: 'alert',
+                    title: 'Error',
+                    summary: errorMsg,
+                    data: {
+                        severity: 'critical',
+                        alertTitle: 'Request Failed',
+                        message: errorMsg,
+                        details: []
+                    },
+                    actions: []
+                });
+                historyEl.addMessage('assistant', errorJson, 'alert');
+            }
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
+    async handleClearHistory() {
+        if (this.isLoading) return;
+
+        if (this.recordId) {
+            try {
+                await clearConversationHistory({ recordId: this.recordId });
+            } catch (e) {
+                // Non-critical — clear UI anyway
+            }
+        }
+
+        const historyEl = this.template.querySelector('c-lnchat-history');
+        if (historyEl) historyEl.clearMessages();
+        this.conversationHistory = [];
+    }
+
+    async handleRecordActionConfirm(event) {
+        const { operation, objectApiName, recordId, fields, bypassDuplicate } = event.detail;
+        const historyEl = this.template.querySelector('c-lnchat-history');
+        this.isLoading = true;
+
+        try {
+            const result = await executeRecordAction({
+                objectApiName,
+                operation,
+                recordId: recordId || null,
+                fieldsJson: JSON.stringify(fields || {}),
+                currentPageRecordId: this.recordId || null,
+                bypassDuplicate: bypassDuplicate === true
+            });
+
+            let responseJson;
+
+            if (result.isDuplicate) {
+                const dups = result.duplicates || [];
+                const details = dups.map((d) => {
+                    const parts = [];
+                    if (d.id)      parts.push('ID: ' + d.id);
+                    if (d.name)    parts.push(d.name);
+                    if (d.email)   parts.push('Email: ' + d.email);
+                    if (d.phone)   parts.push('Phone: ' + d.phone);
+                    if (d.account) parts.push('Account: ' + d.account);
+                    if (d.company) parts.push('Company: ' + d.company);
+                    if (d.stage)   parts.push('Stage: ' + d.stage);
+                    if (d.status)  parts.push('Status: ' + d.status);
+                    if (d.number)  parts.push('Case #: ' + d.number);
+                    if (d.city)    parts.push(d.city + (d.state ? ', ' + d.state : ''));
+                    return parts.join('  |  ');
+                });
+
+                if (result.isAmbiguous) {
+                    responseJson = JSON.stringify({
+                        responseType: 'alert',
+                        title: 'Ambiguous Record — Action Blocked',
+                        summary: 'Found ' + (dups.length + 1) + ' ' + objectApiName + ' records with the same name. Please tell me which one to update by specifying the Record ID.',
+                        data: {
+                            severity: 'warning',
+                            alertTitle: 'Multiple ' + objectApiName + ' Records Found',
+                            message: 'These records share the same name. Specify the Record ID of the one you want to update:',
+                            details
+                        },
+                        actions: []
+                    });
+                } else {
+                    // Store action details so user can proceed past the warning
+                    this._pendingBypassAction = { operation, objectApiName, recordId, fields };
+                    responseJson = JSON.stringify({
+                        responseType: 'alert',
+                        title: 'Duplicate Found — Confirm to Proceed',
+                        summary: dups.length + ' existing record(s) already have similar values. Click "Proceed Anyway" to create the record regardless, or "Cancel" to abort.',
+                        data: {
+                            severity: 'warning',
+                            alertTitle: 'Duplicate ' + objectApiName + ' Record(s) Found',
+                            message: 'The following existing record(s) may conflict with your request:',
+                            details,
+                            allowBypass: true
+                        },
+                        actions: []
+                    });
+                }
+            } else {
+                const noun = operation === 'update' ? objectApiName + ' updated' : objectApiName + ' created';
+                responseJson = JSON.stringify({
+                    responseType: 'alert',
+                    title: 'Success',
+                    summary: noun + ' successfully.',
+                    data: {
+                        severity: 'success',
+                        alertTitle: noun.charAt(0).toUpperCase() + noun.slice(1),
+                        message: noun.charAt(0).toUpperCase() + noun.slice(1) + ' successfully.',
+                        details: result.recordId ? ['Record ID: ' + result.recordId] : []
+                    },
+                    actions: []
+                });
+            }
+
+            if (historyEl) historyEl.addMessage('assistant', responseJson, 'alert');
+            this.conversationHistory.push({ role: 'assistant', content: responseJson });
+
+        } catch (error) {
+            const errorMsg = error.body ? error.body.message : (error.message || 'Record action failed');
+            const errorJson = JSON.stringify({
+                responseType: 'alert',
+                title: 'Error',
+                summary: errorMsg,
+                data: {
+                    severity: 'critical',
+                    alertTitle: 'Action Failed',
+                    message: errorMsg,
+                    details: []
+                },
+                actions: []
+            });
+            if (historyEl) historyEl.addMessage('assistant', errorJson, 'alert');
+        } finally {
+            this.isLoading = false;
+        }
+    }
+
+    handleAttachError(event) {
+        this.dispatchEvent(new ShowToastEvent({
+            title: 'File Attachment',
+            message: event.detail.message,
+            variant: 'error',
+            mode: 'dismissable'
+        }));
+    }
+
+    handleRecordActionCancel() {
+        const cancelJson = JSON.stringify({
+            responseType: 'summary',
+            title: 'Cancelled',
+            summary: 'Action cancelled.',
+            data: {
+                sections: [{ heading: '', body: 'No changes were made. Let me know if you\'d like to do something else.' }],
+                badges: []
+            },
+            actions: []
+        });
+        const historyEl = this.template.querySelector('c-lnchat-history');
+        if (historyEl) historyEl.addMessage('assistant', cancelJson, 'summary');
+    }
+
+    async handleAlertProceed() {
+        if (!this._pendingBypassAction) return;
+        const { operation, objectApiName, recordId, fields } = this._pendingBypassAction;
+        this._pendingBypassAction = null;
+        // Re-fire the confirm event with bypassDuplicate = true
+        this.handleRecordActionConfirm({
+            detail: { operation, objectApiName, recordId, fields, bypassDuplicate: true }
+        });
+    }
+
+    handleAlertCancel() {
+        this._pendingBypassAction = null;
+        const cancelJson = JSON.stringify({
+            responseType: 'summary',
+            title: 'Cancelled',
+            summary: 'Action cancelled. No record was created.',
+            data: { sections: [], badges: [] },
+            actions: []
+        });
+        const historyEl = this.template.querySelector('c-lnchat-history');
+        if (historyEl) historyEl.addMessage('assistant', cancelJson, 'summary');
+    }
+
+    handleRecordNavigate(event) {
+        const { recordId } = event.detail;
+        if (!recordId) return;
+        this[NavigationMixin.Navigate]({
+            type: 'standard__recordPage',
+            attributes: {
+                recordId,
+                actionName: 'view'
+            }
+        });
+    }
+
+    handleMinimize() {
+        this.isMinimized = !this.isMinimized;
+
+        this.dispatchEvent(new CustomEvent('utilitybarminimize', {
+            bubbles: true,
+            composed: true
+        }));
+    }
+}
+
+--- lnchatShell.html ---
+<template>
+    <div class={panelClass}>
+        <!-- Header -->
+        <div class="panel-header">
+            <div class="header-left">
+                <div class="bot-avatar">
+                    <lightning-icon icon-name="utility:einstein" size="small" variant="inverse" class="bot-icon"></lightning-icon>
+                </div>
+                <div class="header-titles">
+                    <span class="header-title">AI Assistant</span>
+                    <template if:true={hasRecord}>
+                        <span class="header-subtitle">{contextLabel}</span>
+                    </template>
+                    <template if:false={hasRecord}>
+                        <span class="header-subtitle">Ask me anything</span>
+                    </template>
+                </div>
+            </div>
+            <div class="header-controls">
+                <template if:true={isLoading}>
+                    <div class="header-thinking">
+                        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                    </div>
+                </template>
+                <button
+                    class="header-btn"
+                    onclick={handleClearHistory}
+                    title="Clear conversation"
+                    aria-label="Clear conversation history"
+                >
+                    <lightning-icon icon-name="utility:delete" size="xx-small"></lightning-icon>
+                </button>
+                <!-- Minimize button hidden in sidebar and drawer modes -->
+                <template if:false={isSidebar}>
+                    <template if:false={isDrawer}>
+                        <button
+                            class="header-btn"
+                            onclick={handleMinimize}
+                            title="Minimize"
+                            aria-label="Minimize panel"
+                        >
+                            <lightning-icon icon-name="utility:minimize_window" size="xx-small"></lightning-icon>
+                        </button>
+                    </template>
+                </template>
+            </div>
+        </div>
+
+        <!-- Body: conversation history -->
+        <c-lnchat-history
+            record-id={recordId}
+            is-typing={isLoading}
+            onrecordactionconfirm={handleRecordActionConfirm}
+            onrecordactioncancel={handleRecordActionCancel}
+            onrecordnavigate={handleRecordNavigate}
+            onalertproceed={handleAlertProceed}
+            onalertcancel={handleAlertCancel}
+        ></c-lnchat-history>
+
+        <!-- Footer: input -->
+        <c-lnchat-input
+            is-loading={isLoading}
+            onmessagesend={handleMessageSend}
+            onattacherror={handleAttachError}
+        ></c-lnchat-input>
+    </div>
+</template>
+
+--- lnchatShell.css ---
+[same structure as original — .chatbot-panel, .panel-minimized, .panel-drawer,
+.panel-sidebar, .panel-header, .header-left, .header-controls, etc.]
+
+================================================================================
+LWC: lnchatDrawer (Floating Action Button + sliding drawer panel)
+================================================================================
+
+--- lnchatDrawer.js-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>true</isExposed>
+    <targets>
+        <target>lightning__RecordPage</target>
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__RecordPage">
+            <objects>
+                <object>Account</object>
+                <object>Opportunity</object>
+                <object>Case</object>
+                <object>Lead</object>
+                <object>Contact</object>
+            </objects>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>
+
+--- lnchatDrawer.js ---
+import { LightningElement, track } from 'lwc';
+
+export default class LnchatDrawer extends LightningElement {
+    @track isOpen = false;
+
+    get drawerClass() {
+        return 'drawer-container' + (this.isOpen ? ' is-open' : '');
+    }
+
+    get triggerClass() {
+        return 'drawer-trigger' + (this.isOpen ? ' trigger-open' : '');
+    }
+
+    handleToggle() {
+        this.isOpen = !this.isOpen;
+    }
+
+    handleClose() {
+        this.isOpen = false;
+    }
+}
+
+--- lnchatDrawer.html ---
+<template>
+    <!-- Backdrop — click to close -->
+    <template if:true={isOpen}>
+        <div class="drawer-backdrop" onclick={handleClose}></div>
+    </template>
+
+    <!-- Sliding drawer panel -->
+    <div class={drawerClass} aria-label="AI Assistant panel">
+        <c-lnchat-shell display-mode="drawer"></c-lnchat-shell>
+    </div>
+
+    <!-- Floating trigger FAB -->
+    <button class={triggerClass} onclick={handleToggle} title="AI Assistant" aria-label="Toggle AI Assistant">
+        <template if:true={isOpen}>
+            <lightning-icon icon-name="utility:close" size="small" variant="inverse" class="trigger-icon"></lightning-icon>
+        </template>
+        <template if:false={isOpen}>
+            <lightning-icon icon-name="utility:einstein" size="small" variant="inverse" class="trigger-icon"></lightning-icon>
+            <span class="trigger-label">AI</span>
+        </template>
+    </button>
+</template>
+
+--- lnchatDrawer.css ---
+/* Fixed position FAB bottom-right, drawer slides in from right */
+.drawer-trigger {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 9000;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background: #0176d3;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.drawer-container {
+    position: fixed;
+    top: 0;
+    right: -420px;
+    width: 420px;
+    height: 100vh;
+    z-index: 8999;
+    transition: right 0.3s ease;
+    background: #fff;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+}
+
+.drawer-container.is-open {
+    right: 0;
+}
+
+.drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.2);
+    z-index: 8998;
+}
+
+================================================================================
+LWC: lnchatHistory
+================================================================================
+
+--- lnchatHistory.css (CRITICAL :host rule) ---
+:host {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.history-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1rem 0.875rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    scroll-behavior: smooth;
+}
+
+Key implementation notes:
+- addMessage(role, content, responseType, attachmentName) parses JSON for
+  assistant messages, extracts parsedTitle, parsedSummary, parsedData, parsedActions.
+  Passes these to c-lnchat-response-renderer.
+- clearMessages() resets messages array and idCounter.
+- startRelativeTimeRefresh() updates relative timestamps every 30s via setInterval.
+- disconnectedCallback() clears the interval to avoid memory leaks.
+- Empty state shown when messages.length === 0 and !isTyping.
+- Typing indicator shows animated dots when isTyping=true.
+- File attachments show a pill badge with attachment name on user messages.
+
+--- lnchatHistory.html ---
+Passes parsedTitle, parsedSummary, parsedData, parsedActions to c-lnchat-response-renderer.
+Does NOT pass raw content JSON. Each assistant message uses:
+  <c-lnchat-response-renderer
+      response-type={message.responseType}
+      title={message.parsedTitle}
+      summary={message.parsedSummary}
+      data={message.parsedData}
+      actions={message.parsedActions}
+      record-id={recordId}
+  ></c-lnchat-response-renderer>
+
+================================================================================
+LWC: lnchatInput
+================================================================================
+
+@api isLoading = false — controls disabled state of textarea and send button.
+Dispatches CustomEvent('messagesend', { detail: { message, attachment } }) on send.
+Dispatches CustomEvent('attacherror', { detail: { message } }) on bad file.
+
+Key: @api focusInput() method for programmatic focus.
+Suggestion chips:
+  ['Summarize this record', 'Open Opportunities', 'Open Cases',
+   'Open Tasks', 'What are the risks?']
+Enter sends (no shift); Shift+Enter inserts newline.
+Auto-resizes textarea up to MAX_ROWS=4 (LINE_HEIGHT=20px).
+
+File attachment support:
+  - "+" button opens hidden file input
+  - Accepted: images (jpg/png/gif/webp ≤3MB), PDF (≤3MB), CSV/TXT/JSON (≤500KB)
+  - Rejected: DOCX/DOC (fires attacherror)
+  - Attachment stored in @track attachment = null
+  - Pill shows filename + remove button
+  - On send: attachment serialized as JSON in messagesend detail
+
+Attachment JSON structure:
+  // Image / PDF
+  { "type": "image|pdf", "name": "file.png", "mimeType": "image/png", "base64Data": "data:..." }
+  // Text
+  { "type": "text", "name": "data.csv", "content": "col1,col2\n..." }
+
+--- lnchatInput.html ---
+Shows suggestion chips (hidden while isLoading or when attachment present).
+Textarea with send button. File input (hidden). Attachment pill when attached.
+Hint text: "Enter to send · Shift+Enter for new line"
+
+================================================================================
+LWC: lnchatResponseRenderer
+================================================================================
+
+Routes to child components based on responseType:
+- kpi_cards     → c-lnchat-kpi-card-grid       (card-data={kpiCards})
+- chart         → c-lnchat-chart-widget         (chart-series={chartDatasets})
+- comparison    → c-lnchat-comparison-table     (table-data={comparisonData})
+- timeline      → c-lnchat-timeline-view        (events={timelineEvents})
+- table         → c-lnchat-table-view           (table-data={tableViewData})
+- alert         → c-lnchat-alert-banner         (allow-bypass={alertAllowBypass})
+- record_summary → c-lnchat-record-summary      (summary-data={recordSummaryData})
+- record_action  → c-lnchat-record-action-card  (operation, object-api-name, record-id, fields-data)
+- summary       → renders sections + badges directly (fallback)
+
+IMPORTANT: lnchatChartWidget @api is named "chartSeries" (NOT "datasets" — reserved in LWC).
+HTML attribute is chart-series={chartDatasets}.
+
+lnchatAlertBanner gets allow-bypass={alertAllowBypass} — set to true when data.allowBypass=true
+(the duplicate-bypass warning flow).
+
+extends NavigationMixin(LightningElement) for flow navigation via handleAction().
+
+--- lnchatResponseRenderer.html ---
+<template>
+    <div class="response-wrap">
+        <template if:true={hasSummary}>
+            <p class="response-summary">{summary}</p>
+        </template>
+        <template if:true={hasTitle}>
+            <h4 class="response-title">{title}</h4>
+        </template>
+        <template if:true={isKpiCards}>
+            <c-lnchat-kpi-card-grid card-data={kpiCards}></c-lnchat-kpi-card-grid>
+        </template>
+        <template if:true={isChart}>
+            <c-lnchat-chart-widget title={chartTitle} chart-type={chartType}
+                labels={chartLabels} chart-series={chartDatasets}></c-lnchat-chart-widget>
+        </template>
+        <template if:true={isComparison}>
+            <c-lnchat-comparison-table table-data={comparisonData}></c-lnchat-comparison-table>
+        </template>
+        <template if:true={isTimeline}>
+            <c-lnchat-timeline-view events={timelineEvents}></c-lnchat-timeline-view>
+        </template>
+        <template if:true={isTable}>
+            <c-lnchat-table-view table-data={tableViewData}></c-lnchat-table-view>
+        </template>
+        <template if:true={isAlert}>
+            <c-lnchat-alert-banner severity={alertSeverity} alert-title={alertTitle}
+                message={alertMessage} details={alertDetails}
+                allow-bypass={alertAllowBypass}></c-lnchat-alert-banner>
+        </template>
+        <template if:true={isRecordSummary}>
+            <c-lnchat-record-summary summary-data={recordSummaryData}></c-lnchat-record-summary>
+        </template>
+        <template if:true={isRecordAction}>
+            <c-lnchat-record-action-card operation={recordActionOperation}
+                object-api-name={recordActionObject} record-id={recordActionRecordId}
+                fields-data={recordActionFields}></c-lnchat-record-action-card>
+        </template>
+        <template if:true={isSummary}>
+            <!-- summary sections + badges fallback -->
+        </template>
+        <template if:true={hasActions}>
+            <!-- action buttons row -->
+        </template>
+    </div>
+</template>
+
+================================================================================
+LWC: lnchatRecordActionCard
+================================================================================
+
+Renders a create/update confirmation card with a field table and Confirm/Cancel buttons.
+
+@api properties:
+  operation    = 'create' | 'update'
+  objectApiName = string (e.g. 'Account')
+  recordId     = string (Salesforce Id for update, empty for create)
+  fieldsData   = object { FieldApiName: value }
+
+Events dispatched (bubbling, composed):
+  recordactionconfirm — detail: { operation, objectApiName, recordId, fields }
+  recordactioncancel  — no detail
+
+After confirm or cancel, buttons are hidden and a status badge (Submitted/Cancelled) appears.
+isDone guards against double-clicks.
+
+FIELD_LABELS map in lnchatRecordActionCard.js translates API names to human-readable labels
+for the table display (e.g. 'BillingCity' → 'Billing City').
+
+--- lnchatRecordActionCard.js-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>false</isExposed>
+</LightningComponentBundle>
+
+================================================================================
+LWC: lnchatRecordSummary
+================================================================================
+
+Renders a rich record overview card: header (name + subtitle + status badge),
+KPI bar (key counts), and collapsible sections with clickable record links.
+
+@api summaryData = {} — the `data` object from a record_summary LLM response.
+
+Structure of summaryData:
+  header:   { name, subtitle, badge, badgeColor }
+  kpis:     [ { label, value, sub } ]
+  sections: [ { title, items: [ { recordId, name, subtitle, date, amount, badges[] } ] } ]
+
+Fires 'recordnavigate' (bubbling, composed) with detail: { recordId } when a
+section item link is clicked. lnchatShell handles this via onrecordnavigate
+on c-lnchat-history and uses NavigationMixin to navigate to the record page.
+
+Empty sections (zero items) are filtered out in the JS getter — never rendered.
+
+--- lnchatRecordSummary.js-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <isExposed>false</isExposed>
+</LightningComponentBundle>
+
+================================================================================
+LWC: lnchatAlertBanner
+================================================================================
+
+@api severity = 'critical | warning | info | success'
+@api alertTitle, message, details (string[])
+@api allowBypass = false — when true, shows "Proceed Anyway" / "Cancel" buttons
+                           instead of the normal dismiss button.
+
+Events:
+  dismiss      — normal alert dismiss (not bubbling)
+  alertproceed — user clicked "Proceed Anyway" (bubbling, composed)
+  alertcancel  — user clicked "Cancel" on bypass prompt (bubbling, composed)
+
+These bubble up through c-lnchat-history to lnchatShell which listens via
+onalertproceed and onalertcancel on the c-lnchat-history element.
+
+================================================================================
+LWC: lnchatChartWidget
+================================================================================
+
+Loads Chart.js v4.4.0 via loadScript from Static Resource 'chartjs'.
+@api chartSeries — array of { label, data[], color } objects.
+Renders bar, line, donut charts using Salesforce brand palette:
+['#0176d3','#1b96ff','#0e56c4','#032d60','#85c9f5','#9854cb','#2e844a','#fe9339']
+
+CRITICAL: Chart.js mutates data arrays by adding a _chartjs property.
+LWC reactive proxies are read-only and will throw on mutation.
+Always clone with Array.from() before passing to Chart.js:
+  Array.from(series[i].data)  // NOT series[i].data directly
+
+================================================================================
+LWC: lnchatTableView
+================================================================================
+
+Renders structured tabular data from the "table" responseType.
+@api tableData = {} — the `data` object from a table LLM response.
+Structure: { columns: ["Col A", "Col B"], rows: [["val1","val2"], ...] }
+Uses SLDS data-table styling.
+
+================================================================================
+LWC: lnchatTestUtil (test helper)
+================================================================================
+
+Minimal utility LWC used as a test stub. @api label = 'Test'.
+js-meta.xml: isExposed=false.
+
+================================================================================
+CUSTOM OBJECTS
+================================================================================
+
+--- LNChatSession__c fields ---
+RecordId__c          Text(18)    — Salesforce record ID being discussed
+ObjectApiName__c     Text(80)    — API name of the object (Account, Case, etc.)
+LastActivityDate__c  DateTime    — last message time for ordering
+
+--- LNChatMessage__c fields ---
+Session__c           Lookup(LNChatSession__c)  — deleteConstraint=SetNull
+Role__c              Text(20)    — 'user' or 'assistant'
+Content__c           LongTextArea(131072)
+ResponseType__c      Text(50)    — kpi_cards, chart, summary, record_action, etc.
+
+--- AI_Config__mdt fields ---
+ApiKey__c            Text(255)   — OpenAI API key
+ModelName__c         Text(100)   — e.g. gpt-4o
+MaxTokens__c         Number(10)  — set to 4096 (values ≤2000 cause empty responses)
+
+================================================================================
+METADATA FILES
+================================================================================
+
+--- force-app/main/default/objects/LNChatSession__c/LNChatSession__c.object-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <allowInChatterGroups>false</allowInChatterGroups>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Stores AI chatbot conversation sessions, one per Salesforce record.</description>
+    <enableBulkApi>true</enableBulkApi>
+    <enableReports>true</enableReports>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>LN Chat Session</label>
+    <nameField>
+        <displayFormat>CS-{0000000}</displayFormat>
+        <label>LN Chat Session Name</label>
+        <trackHistory>false</trackHistory>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>LN Chat Sessions</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+    <visibility>Public</visibility>
+</CustomObject>
+
+--- force-app/main/default/objects/LNChatMessage__c/LNChatMessage__c.object-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <allowInChatterGroups>false</allowInChatterGroups>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Stores individual AI chatbot messages within a session.</description>
+    <enableBulkApi>true</enableBulkApi>
+    <enableReports>true</enableReports>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <label>LN Chat Message</label>
+    <nameField>
+        <displayFormat>CM-{0000000}</displayFormat>
+        <label>LN Chat Message Name</label>
+        <trackHistory>false</trackHistory>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>LN Chat Messages</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+    <visibility>Public</visibility>
+</CustomObject>
+
+--- force-app/main/default/objects/LNChatMessage__c/fields/Session__c.field-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Session__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Lookup to the parent Chat Session record.</description>
+    <externalId>false</externalId>
+    <label>Session</label>
+    <referenceTo>LNChatSession__c</referenceTo>
+    <relationshipLabel>Chat Messages</relationshipLabel>
+    <relationshipName>ChatMessages</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <type>Lookup</type>
+</CustomField>
+
+--- force-app/main/default/remoteSiteSettings/OpenAI_API.remoteSite-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>OpenAI API endpoint for AI chatbot LLM calls.</description>
+    <disableProtocolSecurity>false</disableProtocolSecurity>
+    <isActive>true</isActive>
+    <url>https://api.openai.com</url>
+</RemoteSiteSetting>
+
+--- force-app/main/default/remoteSiteSettings/External_ERP.remoteSite-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>External ERP system endpoint for record data callouts.</description>
+    <disableProtocolSecurity>false</disableProtocolSecurity>
+    <isActive>true</isActive>
+    <url>https://your-erp-system.com</url>
+</RemoteSiteSetting>
+
+--- force-app/main/default/remoteSiteSettings/External_BI.remoteSite-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>External BI/Analytics system endpoint for metrics callouts.</description>
+    <disableProtocolSecurity>false</disableProtocolSecurity>
+    <isActive>true</isActive>
+    <url>https://your-bi-system.com</url>
+</RemoteSiteSetting>
+
+--- force-app/main/default/namedCredentials/OpenAI_GPT.namedCredential-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<NamedCredential xmlns="http://soap.sforce.com/2006/04/metadata">
+    <allowMergeFieldsInBody>false</allowMergeFieldsInBody>
+    <allowMergeFieldsInHeader>false</allowMergeFieldsInHeader>
+    <generateAuthorizationHeader>false</generateAuthorizationHeader>
+    <label>OpenAI GPT</label>
+    <principalType>Anonymous</principalType>
+    <protocol>NoAuthentication</protocol>
+    <endpoint>https://api.openai.com</endpoint>
+</NamedCredential>
+
+--- force-app/main/default/namedCredentials/External_ERP.namedCredential-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<NamedCredential xmlns="http://soap.sforce.com/2006/04/metadata">
+    <allowMergeFieldsInBody>false</allowMergeFieldsInBody>
+    <allowMergeFieldsInHeader>false</allowMergeFieldsInHeader>
+    <generateAuthorizationHeader>false</generateAuthorizationHeader>
+    <label>External ERP</label>
+    <principalType>Anonymous</principalType>
+    <protocol>NoAuthentication</protocol>
+    <endpoint>https://your-erp-system.com/api</endpoint>
+</NamedCredential>
+
+--- force-app/main/default/namedCredentials/External_BI.namedCredential-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<NamedCredential xmlns="http://soap.sforce.com/2006/04/metadata">
+    <allowMergeFieldsInBody>false</allowMergeFieldsInBody>
+    <allowMergeFieldsInHeader>false</allowMergeFieldsInHeader>
+    <generateAuthorizationHeader>false</generateAuthorizationHeader>
+    <label>External BI</label>
+    <principalType>Anonymous</principalType>
+    <protocol>NoAuthentication</protocol>
+    <endpoint>https://your-bi-system.com/api</endpoint>
+</NamedCredential>
+
+--- force-app/main/default/namedCredentials/Anthropic_Claude.namedCredential-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<NamedCredential xmlns="http://soap.sforce.com/2006/04/metadata">
+    <allowMergeFieldsInBody>false</allowMergeFieldsInBody>
+    <allowMergeFieldsInHeader>false</allowMergeFieldsInHeader>
+    <generateAuthorizationHeader>false</generateAuthorizationHeader>
+    <label>Anthropic Claude</label>
+    <principalType>Anonymous</principalType>
+    <protocol>NoAuthentication</protocol>
+    <endpoint>https://api.anthropic.com</endpoint>
+</NamedCredential>
+
+--- force-app/main/default/customMetadata/AI_Config.Default.md-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>Default</label>
+    <protected>false</protected>
+    <values>
+        <field>ApiKey__c</field>
+        <value xsi:type="xsd:string">YOUR_OPENAI_API_KEY_HERE</value>
+    </values>
+    <values>
+        <field>ModelName__c</field>
+        <value xsi:type="xsd:string">gpt-4o</value>
+    </values>
+    <values>
+        <field>MaxTokens__c</field>
+        <value xsi:type="xsd:double">4096</value>
+    </values>
+</CustomMetadata>
+
+NOTE: AI_Config.Default.md-meta.xml is in .forceignore — deploy will NOT overwrite
+the live API key. Always set the API key via Setup UI after deploy.
+
+--- force-app/main/default/staticresources/chartjs.resource-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<StaticResource xmlns="http://soap.sforce.com/2006/04/metadata">
+    <cacheControl>Public</cacheControl>
+    <contentType>application/javascript</contentType>
+    <description>Chart.js v4.4.0 UMD bundle for LWC canvas charts.</description>
+</StaticResource>
+
+--- force-app/main/default/applications/AI_Assistant.app-meta.xml ---
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <defaultLandingTab>standard-home</defaultLandingTab>
+    <description>Sales + Service app with the AI Assistant chatbot in the Utility Bar.</description>
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <isNavTabPersistenceDisabled>false</isNavTabPersistenceDisabled>
+    <isOmniPinnedViewEnabled>false</isOmniPinnedViewEnabled>
+    <label>AI Assistant</label>
+    <navType>Standard</navType>
+    <tabs>standard-home</tabs>
+    <tabs>standard-Lead</tabs>
+    <tabs>standard-Account</tabs>
+    <tabs>standard-Contact</tabs>
+    <tabs>standard-Opportunity</tabs>
+    <tabs>standard-Case</tabs>
+    <tabs>standard-report</tabs>
+    <tabs>standard-Dashboard</tabs>
+    <uiType>Lightning</uiType>
+    <utilityBar>AI_Assistant_UtilityBar</utilityBar>
+</CustomApplication>
+
+--- force-app/main/default/flexipages/AI_Assistant_UtilityBar.flexipage-meta.xml ---
+NOTE: This FlexiPage WILL FAIL to deploy via sf CLI due to a known Salesforce
+platform limitation with custom LWC in utility bar FlexiPages.
+Either:
+  (A) Use lnchatDrawer component via App Builder (recommended — avoids utility bar entirely)
+  (B) Deploy everything else, then add lnchatShell via Setup → App Manager UI
+
+The file is in .forceignore. If you want to attempt deploy anyway:
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexiPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Utility Bar for the AI Assistant app.</description>
+    <flexiPageRegions>
+        <itemInstances>
+            <componentInstance>
+                <componentName>c:lnchatShell</componentName>
+                <identifier>c_lnchatShell</identifier>
+            </componentInstance>
+        </itemInstances>
+        <name>utilityItems</name>
+        <type>Region</type>
+    </flexiPageRegions>
+    <masterLabel>AI Assistant Utility Bar</masterLabel>
+    <template>
+        <name>one:utilityBarTemplateDesktop</name>
+    </template>
+    <type>UtilityBar</type>
+</FlexiPage>
+
+================================================================================
+DEPLOYMENT STEPS
+================================================================================
+
+1. Create SFDX project:
+   sf project generate --name ai-chatbot --template standard
+   cd ai-chatbot
+
+2. Authorize org:
+   sf org login web --alias MY_ORG --instance-url https://login.salesforce.com
+
+3. Download Chart.js:
+   curl -L "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" \
+     -o force-app/main/default/staticresources/chartjs.js
+
+4. Create all files from this prompt (all Apex, LWC, metadata files above).
+
+5. Create .forceignore entries for files excluded from deploy:
+   # .forceignore
+   force-app/main/default/flexipages/AI_Assistant_UtilityBar.flexipage-meta.xml
+   force-app/main/default/applications/AI_Assistant.app-meta.xml
+   force-app/main/default/customMetadata/AI_Config.Default.md-meta.xml
+
+6. Deploy:
+   sf project deploy start --source-dir force-app/main/default \
+     --target-org MY_ORG --wait 15
+
+7. Set OpenAI API key (see POST-DEPLOYMENT SETUP).
+
+8. Add lnchatDrawer to a Lightning page via App Builder (recommended, see below).
+
+================================================================================
+POST-DEPLOYMENT SETUP
+================================================================================
+
+STEP 1 — Set OpenAI API Key:
+  Setup → Custom Metadata Types → AI Config → Manage Records → Default → Edit
+  Paste your OpenAI API key into Api Key field → Save
+  Also set MaxTokens__c to 4096 (CRITICAL — values ≤2000 cause empty responses)
+
+STEP 2 — Verify Named Credentials:
+  Setup → Named Credentials → OpenAI GPT → verify endpoint is https://api.openai.com
+  The chatbot passes the API key via Authorization header in Apex — no auth setup needed in the NC itself.
+
+STEP 3 — Add lnchatDrawer to record pages (RECOMMENDED approach):
+  a. Navigate to any Account record → click the gear → Edit Page
+  b. In the App Builder, drag "lnchat Drawer" component to any region
+     (it renders as a fixed FAB — position on page doesn't matter visually)
+  c. Save + Activate → Assign as org default for Account pages
+  d. Repeat for Opportunity, Contact, Case, Lead pages
+
+  OR — Add lnchatShell to Utility Bar via App Manager (alternative):
+  a. Setup → App Manager
+  b. Find "AI Assistant" → click dropdown → Edit
+  c. Click "Utility Items (Desktop Only)" in left nav
+  d. Click "Add Utility Item" → Search "lnchatShell" → select it
+  e. Configure: Label=AI Assistant, Icon=utility:einstein, Width=420, Height=580
+  f. Save
+
+STEP 4 — Test:
+  App Launcher → AI Assistant → navigate to any Account/Opportunity/Case/Lead/Contact
+  → click the floating AI button (or utility bar tab) → ask questions about the record
+  → try "Summarize this record" for record_summary view
+  → try "Open Opportunities" for open opps list
+  → try "Create a task to follow up" for record_action create flow
+  → try uploading a PDF or CSV for attachment analysis
+
+================================================================================
+KNOWN ISSUES AND RESOLUTION NOTES
+================================================================================
+
+Issue: "You have uncommitted work pending. Please commit or rollback before calling out"
+Fix:   Move all HTTP callouts BEFORE any DML in LNChatController.sendMessage().
+       (getOrCreateSession and saveChatMessage must come AFTER the LLM call)
+
+Issue: LWC1107 — "Properties starting with 'data' are reserved attributes"
+Fix:   Rename @api datasets to @api chartSeries in lnchatChartWidget.js.
+       Update HTML template binding to chart-series={...}
+
+Issue: Named credential deploy error "Element url invalid"
+Fix:   Use <endpoint> not <url> in namedCredential-meta.xml XML
+
+Issue: "Tab standard-Chatter can't be added to Lightning app"
+Fix:   Remove standard-Chatter from app-meta.xml tabs list
+
+Issue: FlexiPage "Invalid component: missing required decorator property [label]"
+Fix:   This is a Salesforce platform limitation — cannot deploy custom LWC
+       components in utility bar FlexiPages via metadata. Use lnchatDrawer
+       on App Builder pages instead (recommended), or add via App Manager UI.
+
+Issue: Chat input inaccessible after AI response (pushed off-screen)
+Fix:   Add :host { flex:1; min-height:0; display:flex; flex-direction:column; }
+       to lnchatHistory.css
+
+Issue: Chat panel appears completely blank — no messages render, no chips
+Fix:   querySelector string literals in lnchatShell.js must match the component
+       folder name. After rename, JS files must be updated manually:
+       this.template.querySelector('c-lnchat-history')  // CORRECT
+       this.template.querySelector('c-chatbot-history') // WRONG after rename
+       All 7 querySelector calls in lnchatShell.js use 'c-lnchat-history'.
+       (sed on .html files does NOT fix JS string literals)
+
+Issue: Record navigation from record_summary clickable links does not work
+Fix:   lnchatShell must extend NavigationMixin(LightningElement). Import
+       NavigationMixin from 'lightning/navigation'. lnchatRecordSummary fires
+       'recordnavigate'; lnchatShell listens onrecordnavigate on c-lnchat-history.
+
+Issue: record_summary items show names but no clickable links
+Fix:   LNChatController.enrichSummaryRecordIds() runs after LLM callout and
+       injects missing recordIds from context data. Without this, LLM may omit
+       IDs and items render as plain text instead of clickable links.
+
+Issue: Duplicate warning alert has no "Proceed Anyway" option
+Fix:   Pass allow-bypass={alertAllowBypass} to c-lnchat-alert-banner in
+       lnchatResponseRenderer. lnchatAlertBanner renders bypass buttons when
+       allowBypass=true. alertproceed / alertcancel events bubble to lnchatShell.
+       lnchatShell stores the pending action in _pendingBypassAction and
+       re-calls handleRecordActionConfirm with bypassDuplicate=true.
+
+Issue: Tests fail with "OpenAI API key not configured in AI_Config__mdt"
+Fix:   AI_Config__mdt.Default record is excluded from deploy (.forceignore).
+       Must be created manually via Setup UI after deploy. Once created, all
+       tests pass. This is expected behavior for a fresh org.
+
+Issue: Chart.js throws "Cannot add property _chartjs, object is not extensible"
+Fix:   LWC reactive proxies are read-only. Clone chart data arrays with
+       Array.from() before passing to Chart.js. Never pass LWC proxy arrays
+       directly to Chart.js constructors.
+
+Issue: Empty responses (finish_reason: length) from OpenAI
+Fix:   Increase MaxTokens__c in AI_Config__mdt to 4096 or higher.
+       Values ≤2000 cause responses to be truncated for large record contexts.
+
+================================================================================
+END OF PROMPT
+================================================================================

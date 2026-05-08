@@ -1,0 +1,113 @@
+<template>
+    <div class="response-wrap">
+        <!-- Summary text always shown first -->
+        <template if:true={hasSummary}>
+            <p class="response-summary">{summary}</p>
+        </template>
+
+        <!-- Title for non-summary types -->
+        <template if:true={hasTitle}>
+            <h4 class="response-title">{title}</h4>
+        </template>
+
+        <!-- KPI Cards -->
+        <template if:true={isKpiCards}>
+            <c-lnchat-kpi-card-grid card-data={kpiCards}></c-lnchat-kpi-card-grid>
+        </template>
+
+        <!-- Chart -->
+        <template if:true={isChart}>
+            <c-lnchat-chart-widget
+                title={chartTitle}
+                chart-type={chartType}
+                labels={chartLabels}
+                chart-series={chartDatasets}
+            ></c-lnchat-chart-widget>
+        </template>
+
+        <!-- Comparison Table -->
+        <template if:true={isComparison}>
+            <c-lnchat-comparison-table table-data={comparisonData}></c-lnchat-comparison-table>
+        </template>
+
+        <!-- Timeline -->
+        <template if:true={isTimeline}>
+            <c-lnchat-timeline-view events={timelineEvents}></c-lnchat-timeline-view>
+        </template>
+
+        <!-- Table -->
+        <template if:true={isTable}>
+            <c-lnchat-table-view table-data={tableViewData}></c-lnchat-table-view>
+        </template>
+
+        <!-- Alert Banner -->
+        <template if:true={isAlert}>
+            <c-lnchat-alert-banner
+                severity={alertSeverity}
+                alert-title={alertTitle}
+                message={alertMessage}
+                details={alertDetails}
+                allow-bypass={alertAllowBypass}
+            ></c-lnchat-alert-banner>
+        </template>
+
+        <!-- Record Summary (rich overview with KPI bar + sections) -->
+        <template if:true={isRecordSummary}>
+            <c-lnchat-record-summary summary-data={recordSummaryData}></c-lnchat-record-summary>
+        </template>
+
+        <!-- Record List (multi-record search results) -->
+        <template if:true={isRecordList}>
+            <c-lnchat-record-list card-data={recordListData}></c-lnchat-record-list>
+        </template>
+
+        <!-- Record Action (create / update) -->
+        <template if:true={isRecordAction}>
+            <c-lnchat-record-action-card
+                operation={recordActionOperation}
+                object-api-name={recordActionObject}
+                record-id={recordActionRecordId}
+                fields-data={recordActionFields}
+            ></c-lnchat-record-action-card>
+        </template>
+
+        <!-- Summary / Fallback -->
+        <template if:true={isSummary}>
+            <div class="summary-sections">
+                <template for:each={summarySections} for:item="section">
+                    <div key={section.heading} class="summary-section">
+                        <template if:true={section.heading}>
+                            <h5 class="section-heading">{section.heading}</h5>
+                        </template>
+                        <p class="section-body">{section.body}</p>
+                    </div>
+                </template>
+                <template if:true={hasBadges}>
+                    <div class="badge-row">
+                        <template for:each={summaryBadges} for:item="badge">
+                            <span key={badge.label} class={badge.badgeClass}>{badge.label}</span>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Action Buttons -->
+        <template if:true={hasActions}>
+            <div class="action-row">
+                <template for:each={actions} for:item="action">
+                    <button
+                        key={action.flowApiName}
+                        class="action-btn"
+                        data-flow={action.flowApiName}
+                        data-vars={action.inputVariablesJson}
+                        onclick={handleAction}
+                    >
+                        <lightning-icon icon-name="utility:flow" size="xx-small" class="action-btn-icon"></lightning-icon>
+                        {action.label}
+                    </button>
+                </template>
+            </div>
+        </template>
+    </div>
+</template>

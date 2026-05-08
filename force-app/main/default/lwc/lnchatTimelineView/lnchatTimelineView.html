@@ -1,0 +1,30 @@
+<template>
+    <div class="timeline-container">
+        <template for:each={processedEvents} for:item="event" for:index="idx">
+            <div key={event.date} class={event.containerClass}>
+                <div class="timeline-icon-wrap">
+                    <div class={event.iconClass}>
+                        <lightning-icon
+                            icon-name={event.iconName}
+                            size="x-small"
+                            class="event-icon"
+                        ></lightning-icon>
+                    </div>
+                    <template if:false={event.isLast}>
+                        <div class="timeline-line"></div>
+                    </template>
+                </div>
+                <div class={event.cardClass}>
+                    <div class="event-header">
+                        <span class="event-date">{event.formattedDate}</span>
+                        <span class={event.statusClass}>{event.status}</span>
+                    </div>
+                    <h5 class="event-title">{event.title}</h5>
+                    <template if:true={event.description}>
+                        <p class="event-description">{event.description}</p>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+</template>

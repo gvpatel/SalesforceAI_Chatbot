@@ -1,0 +1,85 @@
+/* ── Floating trigger FAB ──────────────────────────────────────────────── */
+.drawer-trigger {
+    position: fixed;
+    right: 4px;
+    bottom: 30%;
+    z-index: 9001;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1b96ff 0%, #0176d3 50%, #032d60 100%);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    box-shadow: 0 4px 16px rgba(1, 118, 211, 0.55), 0 2px 6px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    animation: fab-pulse 2.8s ease-in-out infinite;
+}
+
+.drawer-trigger:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(1, 118, 211, 0.7), 0 3px 10px rgba(0, 0, 0, 0.25);
+    animation: none;
+}
+
+.trigger-open {
+    background: linear-gradient(135deg, #54698d 0%, #2e3f5c 100%);
+    animation: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.trigger-icon {
+    --sds-c-icon-color-foreground-default: #ffffff;
+}
+
+.trigger-label {
+    font-size: 0.5rem;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+@keyframes fab-pulse {
+    0%, 100% {
+        box-shadow: 0 4px 16px rgba(1, 118, 211, 0.55), 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    50% {
+        box-shadow: 0 4px 24px rgba(1, 118, 211, 0.8), 0 0 0 8px rgba(1, 118, 211, 0.12);
+    }
+}
+
+/* ── Drawer container ──────────────────────────────────────────────────── */
+.drawer-container {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 600px;
+    height: 100vh;
+    z-index: 9000;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -6px 0 32px rgba(0, 0, 0, 0.18);
+}
+
+.drawer-container.is-open {
+    transform: translateX(0);
+}
+
+/* ── Backdrop ──────────────────────────────────────────────────────────── */
+.drawer-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(2px);
+    z-index: 8999;
+    cursor: pointer;
+}

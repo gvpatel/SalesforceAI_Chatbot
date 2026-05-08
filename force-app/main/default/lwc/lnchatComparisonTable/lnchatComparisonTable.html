@@ -1,0 +1,59 @@
+<template>
+    <div class="comparison-wrapper">
+        <div class="table-scroll">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <template for:each={columns} for:item="col">
+                            <th
+                                key={col.key}
+                                class={col.headerClass}
+                                onclick={handleSort}
+                                data-key={col.key}
+                                scope="col"
+                            >
+                                <div class="th-inner">
+                                    {col.label}
+                                    <template if:true={col.isSorted}>
+                                        <lightning-icon
+                                            icon-name={col.sortIcon}
+                                            size="xx-small"
+                                            class="sort-icon"
+                                        ></lightning-icon>
+                                    </template>
+                                </div>
+                            </th>
+                        </template>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={sortedRows} for:item="row">
+                        <tr key={row.field} class={row.rowClass}>
+                            <td class="cell-field">{row.field}</td>
+                            <td class="cell-sf">
+                                <span class="cell-value">{row.salesforceValue}</span>
+                            </td>
+                            <td class="cell-ext">
+                                <span class="cell-value">{row.externalValue}</span>
+                                <template if:true={row.isDifferent}>
+                                    <lightning-icon
+                                        icon-name="utility:warning"
+                                        size="xx-small"
+                                        class="diff-icon"
+                                        title="Values differ between systems"
+                                    ></lightning-icon>
+                                </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <template if:true={hasDiffs}>
+            <p class="diff-legend">
+                <lightning-icon icon-name="utility:warning" size="xx-small" class="legend-icon"></lightning-icon>
+                <span>{diffCount} field(s) differ between Salesforce and the external system</span>
+            </p>
+        </template>
+    </div>
+</template>

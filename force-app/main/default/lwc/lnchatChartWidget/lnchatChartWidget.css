@@ -1,0 +1,59 @@
+.chart-container {
+    width: 100%;
+    padding: 0.25rem 0;
+    position: relative;
+}
+
+.chart-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #032d60;
+    font-family: var(--lwc-fontFamily, 'Salesforce Sans', Arial, sans-serif);
+}
+
+.canvas-wrapper {
+    position: relative;
+    width: 100%;
+    max-height: 220px;
+}
+
+.chart-canvas {
+    width: 100% !important;
+    max-height: 220px;
+}
+
+.chart-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: #706e6b;
+    font-size: 0.8125rem;
+    justify-content: center;
+}
+
+.loading-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #e8e8e8;
+    border-top-color: #0176d3;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.chart-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: #ba0517;
+    font-size: 0.8125rem;
+    justify-content: center;
+    --sds-c-icon-color-foreground-default: #ba0517;
+}

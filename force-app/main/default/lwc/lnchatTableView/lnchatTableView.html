@@ -1,0 +1,46 @@
+<template>
+    <div class="table-wrapper">
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <template for:each={columns} for:item="col">
+                            <th
+                                key={col.index}
+                                onclick={handleSort}
+                                data-index={col.index}
+                                title="Click to sort"
+                            >
+                                <div class="th-inner">
+                                    {col.label}
+                                    <template if:true={col.isSorted}>
+                                        <lightning-icon
+                                            icon-name={col.sortIcon}
+                                            size="xx-small"
+                                            class="sort-icon"
+                                        ></lightning-icon>
+                                    </template>
+                                </div>
+                            </th>
+                        </template>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={sortedRows} for:item="row">
+                        <tr key={row.key} class={row.rowClass}>
+                            <template for:each={row.cells} for:item="cell">
+                                <td key={cell.index} class={cell.cellClass}>{cell.value}</td>
+                            </template>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        <template if:true={isEmpty}>
+            <div class="empty-state">No data to display.</div>
+        </template>
+        <div class="table-footer">
+            <span class="row-count">{rowCount} row(s)</span>
+        </div>
+    </div>
+</template>

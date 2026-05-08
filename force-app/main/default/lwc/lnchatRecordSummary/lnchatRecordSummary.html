@@ -1,0 +1,72 @@
+<template>
+    <!-- Header -->
+    <div class="rs-header">
+        <div class="rs-header-info">
+            <h3 class="rs-name">{headerName}</h3>
+            <template if:true={headerSubtitle}>
+                <p class="rs-subtitle">{headerSubtitle}</p>
+            </template>
+        </div>
+        <template if:true={headerBadge}>
+            <span class={headerBadgeClass}>{headerBadge}</span>
+        </template>
+    </div>
+
+    <!-- KPI bar -->
+    <template if:true={hasKpis}>
+        <div class="rs-kpi-bar">
+            <template for:each={kpis} for:item="kpi">
+                <div key={kpi.label} class="rs-kpi">
+                    <span class="rs-kpi-label">{kpi.label}</span>
+                    <span class="rs-kpi-value">{kpi.value}</span>
+                    <template if:true={kpi.sub}>
+                        <span class="rs-kpi-sub">{kpi.sub}</span>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </template>
+
+    <!-- Sections (empty sections are filtered out in JS) -->
+    <div class="rs-sections">
+        <template for:each={sections} for:item="section">
+            <div key={section.title} class="rs-section">
+                <h4 class="rs-section-title">{section.title}</h4>
+                <div class="rs-items">
+                    <template for:each={section.items} for:item="item">
+                        <div key={item.key} class="rs-item">
+                            <div class="rs-item-left">
+                                <!-- Clickable link when recordId is available -->
+                                <template if:true={item.hasLink}>
+                                    <button
+                                        class="rs-item-link"
+                                        data-record-id={item.recordId}
+                                        onclick={handleRecordClick}
+                                        title="Open record"
+                                    >{item.name}</button>
+                                </template>
+                                <template if:false={item.hasLink}>
+                                    <span class="rs-item-name">{item.name}</span>
+                                </template>
+                                <template if:true={item.subtitle}>
+                                    <span class="rs-item-subtitle">{item.subtitle}</span>
+                                </template>
+                                <template if:true={item.date}>
+                                    <span class="rs-item-date">{item.date}</span>
+                                </template>
+                            </div>
+                            <div class="rs-item-right">
+                                <template if:true={item.amount}>
+                                    <span class="rs-item-amount">{item.amount}</span>
+                                </template>
+                                <template for:each={item.badgeList} for:item="badge">
+                                    <span key={badge.label} class={badge.cls}>{badge.label}</span>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+</template>

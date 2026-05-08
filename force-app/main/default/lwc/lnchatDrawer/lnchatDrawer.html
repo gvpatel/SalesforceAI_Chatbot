@@ -1,0 +1,22 @@
+<template>
+    <!-- Backdrop — click to close -->
+    <template if:true={isOpen}>
+        <div class="drawer-backdrop" onclick={handleClose}></div>
+    </template>
+
+    <!-- Sliding drawer panel -->
+    <div class={drawerClass} aria-label="AI Assistant panel">
+        <c-lnchat-shell display-mode="drawer" show-intent-badge={showIntentBadge}></c-lnchat-shell>
+    </div>
+
+    <!-- Floating trigger FAB -->
+    <button class={triggerClass} onclick={handleToggle} title="AI Assistant" aria-label="Toggle AI Assistant">
+        <template if:true={isOpen}>
+            <lightning-icon icon-name="utility:close" size="small" variant="inverse" class="trigger-icon"></lightning-icon>
+        </template>
+        <template if:false={isOpen}>
+            <lightning-icon icon-name="utility:einstein" size="small" variant="inverse" class="trigger-icon"></lightning-icon>
+            <span class="trigger-label">AI</span>
+        </template>
+    </button>
+</template>

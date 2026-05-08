@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv ChatSession__c LNChatSession__c)",
+      "Bash(mv ChatMessage__c LNChatMessage__c)",
+      "Read(//Users/patelgv/.config/mcp/**)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); gh=d.get\\('mcpServers',{}\\).get\\('github',{}\\); env=gh.get\\('env',{}\\); print\\('GITHUB_TOKEN found' if env.get\\('GITHUB_TOKEN'\\) else 'no token found'\\); print\\(list\\(env.keys\\(\\)\\)\\)\")"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "salesforce",
+    "mcp-atlassian",
+    "github",
+    "postgres",
+    "redshift",
+    "figma",
+    "redshift-bi"
+  ]
+}

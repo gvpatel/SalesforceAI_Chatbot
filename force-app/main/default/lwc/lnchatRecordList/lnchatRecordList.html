@@ -1,0 +1,44 @@
+<template>
+    <div class="record-list-container">
+        <template if:true={isLoading}>
+            <div class="loading-wrapper">
+                <lightning-spinner size="small" alternative-text="Loading records"></lightning-spinner>
+                <span class="loading-text">Searching records...</span>
+            </div>
+        </template>
+
+        <template if:true={hasError}>
+            <div class="error-wrapper">
+                <lightning-icon icon-name="utility:error" size="x-small" variant="error"></lightning-icon>
+                <span class="error-text">{errorMessage}</span>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:false={hasError}>
+                <div class="result-header">
+                    <span class="result-count">{resultCountLabel}</span>
+                    <template if:true={hasRows}>
+                        <button class="export-btn" onclick={handleExport} title="Export to CSV">
+                            <lightning-icon icon-name="utility:download" size="xx-small" class="export-icon"></lightning-icon>
+                            Export CSV
+                        </button>
+                    </template>
+                </div>
+                <template if:true={hasRows}>
+                    <lightning-datatable
+                        key-field="Id"
+                        data={tableRows}
+                        columns={tableColumns}
+                        hide-checkbox-column
+                        onrowaction={handleRowAction}
+                        row-number-offset="0"
+                    ></lightning-datatable>
+                </template>
+                <template if:false={hasRows}>
+                    <div class="no-results">No records found matching your criteria.</div>
+                </template>
+            </template>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,72 @@
+<template>
+    <div class="input-container">
+        <!-- Quick suggestion chips -->
+        <template if:false={isLoading}>
+            <div class="suggestions-row">
+                <template for:each={suggestions} for:item="suggestion">
+                    <button
+                        key={suggestion.text}
+                        class="suggestion-chip"
+                        onclick={handleSuggestion}
+                        data-text={suggestion.text}
+                        data-prefill={suggestion.prefill}
+                        disabled={isLoading}
+                    >{suggestion.text}</button>
+                </template>
+            </div>
+        </template>
+
+        <!-- Attachment preview pill -->
+        <template if:true={hasAttachment}>
+            <div class="attachment-preview">
+                <lightning-icon icon-name={attachmentIcon} size="xx-small" class="attach-file-icon"></lightning-icon>
+                <span class="attach-filename">{attachment.name}</span>
+                <button class="attach-remove" onclick={handleRemoveAttachment} title="Remove attachment" aria-label="Remove attachment">
+                    <lightning-icon icon-name="utility:close" size="xx-small" class="attach-remove-icon"></lightning-icon>
+                </button>
+            </div>
+        </template>
+
+        <!-- Input bar -->
+        <div class="input-bar">
+            <!-- Hidden file input -->
+            <input
+                type="file"
+                class="file-input"
+                accept="image/*,.csv,.txt,.pdf,.doc,.docx"
+                onchange={handleFileChange}
+            />
+            <!-- Attach button -->
+            <button
+                class="attach-btn"
+                onclick={handleAttachmentClick}
+                disabled={isLoading}
+                title="Attach file (image, PDF, CSV, TXT)"
+                aria-label="Attach file"
+            >
+                <lightning-icon icon-name="utility:add" size="xx-small" class="attach-icon"></lightning-icon>
+            </button>
+            <textarea
+                class="message-textarea"
+                placeholder="Ask me about this record..."
+                value={messageText}
+                oninput={handleInput}
+                onkeydown={handleKeyDown}
+                disabled={isLoading}
+                rows="1"
+                maxlength="2000"
+                lwc:ref="textarea"
+            ></textarea>
+            <button
+                class={sendButtonClass}
+                onclick={handleSend}
+                disabled={isSendDisabled}
+                title="Send message (Enter)"
+                aria-label="Send message"
+            >
+                <lightning-icon icon-name="utility:send" size="small" class="send-icon"></lightning-icon>
+            </button>
+        </div>
+        <p class="input-hint">Enter to send · Shift+Enter for new line</p>
+    </div>
+</template>

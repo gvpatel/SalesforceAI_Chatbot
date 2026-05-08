@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BI Server — Architecture & Setup Guide</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0176d3 0%, #032d60 100%);
+      color: #fff;
+      padding: 2.5rem 3rem;
+    }
+    header h1 { font-size: 1.9rem; font-weight: 700; margin-bottom: 0.35rem; }
+    header p  { font-size: 0.95rem; opacity: 0.85; }
+    .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 20px;
+      padding: 0.2rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-top: 0.75rem;
+      margin-right: 0.4rem;
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+    /* ── Section ── */
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #032d60;
+      border-left: 4px solid #0176d3;
+      padding-left: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    h3 { font-size: 0.95rem; font-weight: 700; color: #032d60; margin-bottom: 0.5rem; }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border: 1px solid #e3e8ef;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    /* ── Architecture Diagram (SVG) ── */
+    .diagram-wrap {
+      background: #fff;
+      border: 1px solid #e3e8ef;
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      overflow-x: auto;
+    }
+    .diagram-wrap svg { display: block; margin: 0 auto; }
+
+    /* ── Data Flow Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 0.9rem 1rem;
+      border-left: 2px solid #e3e8ef;
+      position: relative;
+      margin-left: 1rem;
+    }
+    .step:last-child { border-left-color: transparent; }
+    .step-num {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      background: #0176d3;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      left: -15px;
+      margin-right: -14px;
+    }
+    .step-body { padding-top: 2px; }
+    .step-body strong { display: block; font-size: 0.88rem; color: #032d60; }
+    .step-body span   { font-size: 0.82rem; color: #555; }
+
+    /* ── Code blocks ── */
+    pre {
+      background: #0f1724;
+      color: #cdd6f4;
+      border-radius: 8px;
+      padding: 1.1rem 1.25rem;
+      font-size: 0.8rem;
+      line-height: 1.65;
+      overflow-x: auto;
+      margin-bottom: 0.75rem;
+    }
+    code { font-family: 'Fira Code', 'Cascadia Code', 'Courier New', monospace; }
+    .kw  { color: #89b4fa; }
+    .str { color: #a6e3a1; }
+    .cm  { color: #6c7086; }
+    .fn  { color: #cba6f7; }
+
+    /* ── File tree ── */
+    .tree {
+      background: #f0f4f8;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      font-family: monospace;
+      font-size: 0.82rem;
+      line-height: 1.9;
+    }
+    .tree .dir  { color: #0176d3; font-weight: 700; }
+    .tree .file { color: #1a1a2e; }
+    .tree .note { color: #888; font-size: 0.78rem; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th {
+      background: #f0f4f8;
+      text-align: left;
+      padding: 0.55rem 0.85rem;
+      font-weight: 700;
+      color: #032d60;
+      border-bottom: 2px solid #dde3ed;
+    }
+    td {
+      padding: 0.55rem 0.85rem;
+      border-bottom: 1px solid #edf0f5;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    code.inline {
+      background: #eef2ff;
+      color: #0176d3;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.78rem;
+    }
+
+    /* ── Pill ── */
+    .pill {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .pill-green  { background: #cdefc4; color: #2e7d0e; }
+    .pill-blue   { background: #d8edff; color: #014486; }
+    .pill-orange { background: #fce0b8; color: #8c4b00; }
+
+    /* ── Alert box ── */
+    .alert {
+      border-left: 4px solid #f0ad4e;
+      background: #fffbf0;
+      padding: 0.75rem 1rem;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .alert strong { color: #8c4b00; }
+
+    /* ── Two cols ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+    footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #888;
+      padding: 2rem 1rem;
+      border-top: 1px solid #e3e8ef;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>BI Server — Architecture &amp; Setup Guide</h1>
+  <p>How the Salesforce AI Chatbot accesses real-time LexisNexis Redshift data</p>
+  <div>
+    <span class="badge">Python FastAPI</span>
+    <span class="badge">AWS Redshift</span>
+    <span class="badge">Salesforce Apex</span>
+    <span class="badge">MCP Server</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ── OVERVIEW ── -->
+  <section>
+    <h2>Overview</h2>
+    <div class="card">
+      <p>The Salesforce AI Chatbot needed access to real BI metrics from LexisNexis's internal Redshift data warehouse (<code class="inline">gdw</code> database on <code class="inline">prod-gdw-database.business.aws.lexisnexis.com</code>). The warehouse contains Salesforce-mirrored tables (opportunities, cases, activities) alongside billing and revenue data going back to 2015.</p>
+      <p style="margin-top:0.75rem">A Python server acts as a bridge: Salesforce calls it over HTTP, it queries Redshift, and returns structured JSON that the chatbot's LLM uses as context. The same server is registered as an <strong>MCP server</strong> with Claude Code, so the AI can query the database directly during development.</p>
+    </div>
+  </section>
+
+  <!-- ── ARCHITECTURE DIAGRAM ── -->
+  <section>
+    <h2>Architecture Diagram</h2>
+    <div class="diagram-wrap">
+      <svg width="860" height="420" viewBox="0 0 860 420" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe UI', system-ui, sans-serif">
+
+        <!-- Background lanes -->
+        <rect x="10"  y="60" width="250" height="340" rx="10" fill="#f0f7ff" stroke="#b8d4f0" stroke-width="1.2"/>
+        <rect x="280" y="60" width="290" height="340" rx="10" fill="#f5fff0" stroke="#b3dcaa" stroke-width="1.2"/>
+        <rect x="590" y="60" width="260" height="340" rx="10" fill="#fff8f0" stroke="#f0c896" stroke-width="1.2"/>
+
+        <!-- Lane labels -->
+        <text x="135" y="85"  text-anchor="middle" font-size="11" font-weight="700" fill="#0176d3">SALESFORCE CLOUD</text>
+        <text x="425" y="85"  text-anchor="middle" font-size="11" font-weight="700" fill="#2e7d0e">BI SERVER (Python)</text>
+        <text x="720" y="85"  text-anchor="middle" font-size="11" font-weight="700" fill="#8c4b00">AWS REDSHIFT (VPN)</text>
+
+        <!-- ── Salesforce boxes ── -->
+        <!-- Chatbot LWC -->
+        <rect x="30"  y="105" width="210" height="52" rx="7" fill="#0176d3" />
+        <text x="135" y="128" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">chatbotShell (LWC)</text>
+        <text x="135" y="146" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">User sends a message</text>
+
+        <!-- ChatbotController -->
+        <rect x="30"  y="180" width="210" height="52" rx="7" fill="#014486" />
+        <text x="135" y="203" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ChatbotController.cls</text>
+        <text x="135" y="221" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">@AuraEnabled sendMessage()</text>
+
+        <!-- ContextBuilderService -->
+        <rect x="30"  y="255" width="210" height="52" rx="7" fill="#1b4f8a" />
+        <text x="135" y="278" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ContextBuilderService.cls</text>
+        <text x="135" y="296" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">Builds context + calls BI</text>
+
+        <!-- ExternalBIService -->
+        <rect x="30"  y="330" width="210" height="52" rx="7" fill="#2a6496" />
+        <text x="135" y="353" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ExternalBIService.cls</text>
+        <text x="135" y="371" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">HTTP GET /metrics?entityId=…</text>
+
+        <!-- ── BI Server boxes ── -->
+        <!-- FastAPI -->
+        <rect x="300" y="105" width="250" height="52" rx="7" fill="#2e7d0e" />
+        <text x="425" y="128" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">FastAPI — api_server.py</text>
+        <text x="425" y="146" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">GET /metrics  ·  GET /health</text>
+
+        <!-- redshift_client -->
+        <rect x="300" y="180" width="250" height="52" rx="7" fill="#3d9e1f" />
+        <text x="425" y="203" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">redshift_client.py</text>
+        <text x="425" y="221" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">redshift_connector  ·  run_query()</text>
+
+        <!-- MCP Server -->
+        <rect x="300" y="255" width="250" height="52" rx="7" fill="#1e6b0a" />
+        <text x="425" y="278" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">MCP Server — mcp_server.py</text>
+        <text x="425" y="296" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">Claude Code queries Redshift</text>
+
+        <!-- Lambda -->
+        <rect x="300" y="330" width="250" height="52" rx="7" fill="#145c02" stroke="#a8e89c" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="425" y="353" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">lambda_handler.py  (optional)</text>
+        <text x="425" y="371" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">Deploy to AWS Lambda for prod</text>
+
+        <!-- ── Redshift boxes ── -->
+        <!-- ei.sf_opty_curr -->
+        <rect x="610" y="105" width="220" height="52" rx="7" fill="#e07b1a" />
+        <text x="720" y="128" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ei.sf_opty_curr</text>
+        <text x="720" y="146" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">sf_intgrt_acct_id → acct_id</text>
+
+        <!-- ei.sf_case -->
+        <rect x="610" y="180" width="220" height="52" rx="7" fill="#c86e18" />
+        <text x="720" y="203" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ei.sf_case</text>
+        <text x="720" y="221" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">Cases by sf_intgrt_acct_id</text>
+
+        <!-- ei.earned_rev_mthly_sum -->
+        <rect x="610" y="255" width="220" height="52" rx="7" fill="#b05c10" />
+        <text x="720" y="272" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ei.earned_rev_mthly_sum</text>
+        <text x="720" y="290" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">Revenue by month (acct_id)</text>
+
+        <!-- ei.sf_activity -->
+        <rect x="610" y="330" width="220" height="52" rx="7" fill="#944d0c" />
+        <text x="720" y="353" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">ei.sf_activity</text>
+        <text x="720" y="371" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.85)">Activities by sf_intgrt_acct_id</text>
+
+        <!-- ── Arrows: Salesforce → BI Server ── -->
+        <!-- LWC → Controller (down) -->
+        <line x1="135" y1="157" x2="135" y2="180" stroke="#0176d3" stroke-width="1.8" marker-end="url(#arrowBlue)"/>
+        <!-- Controller → Context (down) -->
+        <line x1="135" y1="232" x2="135" y2="255" stroke="#0176d3" stroke-width="1.8" marker-end="url(#arrowBlue)"/>
+        <!-- Context → ExternalBI (down) -->
+        <line x1="135" y1="307" x2="135" y2="330" stroke="#0176d3" stroke-width="1.8" marker-end="url(#arrowBlue)"/>
+
+        <!-- ExternalBI → FastAPI (right) -->
+        <line x1="240" y1="356" x2="300" y2="356" stroke="#0176d3" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrowBlue)"/>
+        <text x="270" y="348" text-anchor="middle" font-size="9" fill="#0176d3" font-weight="600">HTTP</text>
+
+        <!-- FastAPI → redshift_client (down) -->
+        <line x1="425" y1="157" x2="425" y2="180" stroke="#2e7d0e" stroke-width="1.8" marker-end="url(#arrowGreen)"/>
+        <!-- redshift_client → MCP (down) -->
+        <line x1="425" y1="232" x2="425" y2="255" stroke="#2e7d0e" stroke-width="1.8" marker-end="url(#arrowGreen)"/>
+        <!-- MCP → Lambda (down) -->
+        <line x1="425" y1="307" x2="425" y2="330" stroke="#2e7d0e" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+
+        <!-- redshift_client → Redshift tables (right) -->
+        <line x1="550" y1="206" x2="610" y2="131" stroke="#e07b1a" stroke-width="1.8" marker-end="url(#arrowOrange)"/>
+        <line x1="550" y1="206" x2="610" y2="206" stroke="#e07b1a" stroke-width="1.8" marker-end="url(#arrowOrange)"/>
+        <line x1="550" y1="206" x2="610" y2="281" stroke="#e07b1a" stroke-width="1.8" marker-end="url(#arrowOrange)"/>
+        <line x1="550" y1="206" x2="610" y2="356" stroke="#e07b1a" stroke-width="1.8" marker-end="url(#arrowOrange)"/>
+        <text x="580" y="198" font-size="9" fill="#8c4b00" font-weight="600">SQL</text>
+
+        <!-- Arrow markers -->
+        <defs>
+          <marker id="arrowBlue"   markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#0176d3"/>
+          </marker>
+          <marker id="arrowGreen"  markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#2e7d0e"/>
+          </marker>
+          <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#e07b1a"/>
+          </marker>
+        </defs>
+
+        <!-- Legend -->
+        <rect x="30" y="400" width="800" height="16" rx="0" fill="none"/>
+        <line x1="30" y1="408" x2="55" y2="408" stroke="#0176d3" stroke-width="2"/>
+        <text x="60" y="412" font-size="10" fill="#444">Salesforce internal call</text>
+        <line x1="180" y1="408" x2="205" y2="408" stroke="#0176d3" stroke-width="2" stroke-dasharray="5,3"/>
+        <text x="210" y="412" font-size="10" fill="#444">HTTP callout (Named Credential)</text>
+        <line x1="420" y1="408" x2="445" y2="408" stroke="#e07b1a" stroke-width="2"/>
+        <text x="450" y="412" font-size="10" fill="#444">SQL query over VPN</text>
+        <line x1="600" y1="408" x2="625" y2="408" stroke="#2e7d0e" stroke-width="2" stroke-dasharray="4,3"/>
+        <text x="630" y="412" font-size="10" fill="#444">Optional (prod deploy)</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ── DATA FLOW ── -->
+  <section>
+    <h2>Data Flow — Step by Step</h2>
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <strong>User sends a message in the chatbot</strong>
+            <span><code class="inline">chatbotShell</code> LWC fires <code class="inline">sendMessage(recordId, objectApiName, message)</code> to Apex.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <strong>ContextBuilderService builds the context</strong>
+            <span>Queries the current Salesforce record + related objects. Extracts the <code class="inline">entityId</code> — first tries <code class="inline">SourceSystemIdentifier__c</code> / <code class="inline">External_Id__c</code>, falls back to the Salesforce record ID (18-char).</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <strong>ExternalBIService makes an HTTP callout</strong>
+            <span>Calls <code class="inline">GET callout:External_BI/metrics?entityId={sfRecordId}</code> via Named Credential. The server runs on port 8000 (local/ngrok) or API Gateway (prod).</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <strong>api_server.py resolves the join key</strong>
+            <span>Queries <code class="inline">ei.sf_opty_curr WHERE sf_intgrt_acct_id = entityId</code> to get the Redshift internal <code class="inline">acct_id</code>. This is the bridge between the Salesforce ID namespace and Redshift's internal IDs.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <strong>Parallel Redshift queries</strong>
+            <span>Fetches open opportunities (<code class="inline">ei.sf_opty_curr</code>), cases (<code class="inline">ei.sf_case</code>), monthly revenue (<code class="inline">ei.earned_rev_mthly_sum</code>), and activities (<code class="inline">ei.sf_activity</code>).</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <strong>JSON returned to Salesforce</strong>
+            <span>The response is stored in the context map as <code class="inline">biData</code> and injected into the LLM system prompt alongside the Salesforce record data. GPT-5.5 then uses both sources to answer the user's question.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── KEY JOIN ── -->
+  <section>
+    <h2>Key Database Join — Salesforce ID → Redshift Revenue</h2>
+    <div class="card">
+      <p style="margin-bottom:1rem; font-size:0.88rem; color:#555">The central discovery: <code class="inline">ei.sf_opty_curr.sf_intgrt_acct_id</code> stores the Salesforce Account ID, linking CRM data to all billing and revenue tables.</p>
+      <pre><code><span class="cm">-- Step 1: resolve SF Account ID → Redshift internal acct_id</span>
+<span class="kw">SELECT</span> acct_id
+<span class="kw">FROM</span>   ei.sf_opty_curr
+<span class="kw">WHERE</span>  sf_intgrt_acct_id = <span class="str">'001f400000wwOihAAE'</span>   <span class="cm">-- Salesforce 18-char ID</span>
+  <span class="kw">AND</span>  acct_id &lt;&gt; <span class="str">'NA'</span>
+<span class="kw">LIMIT</span>  1;
+<span class="cm">-- → acct_id = '42532G3MB'</span>
+
+<span class="cm">-- Step 2: pull monthly revenue using acct_id</span>
+<span class="kw">SELECT</span> clndr_yr, clndr_month,
+       <span class="fn">SUM</span>(usd_net_earned_rev_amt) <span class="kw">AS</span> net_rev_usd
+<span class="kw">FROM</span>   ei.earned_rev_mthly_sum
+<span class="kw">WHERE</span>  acct_id = <span class="str">'42532G3MB'</span>
+<span class="kw">GROUP BY</span> clndr_yr, clndr_month
+<span class="kw">ORDER BY</span> clndr_yr <span class="kw">DESC</span>, clndr_month <span class="kw">DESC</span>
+<span class="kw">LIMIT</span>  12;</code></pre>
+    </div>
+  </section>
+
+  <!-- ── SCHEMA MAP ── -->
+  <section>
+    <h2>Redshift Schema — Key Tables Used</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Schema</th>
+            <th>Join Key</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code class="inline">sf_opty_curr</code></td>
+            <td><span class="pill pill-blue">ei</span></td>
+            <td><code class="inline">sf_intgrt_acct_id</code></td>
+            <td>Current Salesforce Opportunities — also provides <code class="inline">acct_id</code> bridge</td>
+          </tr>
+          <tr>
+            <td><code class="inline">sf_case</code></td>
+            <td><span class="pill pill-blue">ei</span></td>
+            <td><code class="inline">sf_intgrt_acct_id</code></td>
+            <td>Salesforce Cases with type, priority, status</td>
+          </tr>
+          <tr>
+            <td><code class="inline">sf_activity</code></td>
+            <td><span class="pill pill-blue">ei</span></td>
+            <td><code class="inline">sf_intgrt_acct_id</code></td>
+            <td>Salesforce Activities (calls, emails, tasks)</td>
+          </tr>
+          <tr>
+            <td><code class="inline">earned_rev_mthly_sum</code></td>
+            <td><span class="pill pill-blue">ei</span></td>
+            <td><code class="inline">acct_id</code></td>
+            <td>Monthly earned revenue — subscription + transactional, in USD</td>
+          </tr>
+          <tr>
+            <td><code class="inline">acct_curr</code></td>
+            <td><span class="pill pill-blue">ei</span></td>
+            <td><code class="inline">acct_id</code></td>
+            <td>Current account master record (name, company code, status)</td>
+          </tr>
+          <tr>
+            <td><code class="inline">sf_quote_hdr</code></td>
+            <td><span class="pill pill-blue">ei</span></td>
+            <td><code class="inline">sf_intgrt_acct_id</code></td>
+            <td>Salesforce Quotes (available for future enrichment)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── FILES ── -->
+  <section>
+    <h2>Project Files</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>bi-server/</h3>
+        <div class="tree">
+          <div><span class="dir">bi-server/</span></div>
+          <div>&nbsp;&nbsp;├─ <span class="file">api_server.py</span> <span class="note">← FastAPI REST (Salesforce)</span></div>
+          <div>&nbsp;&nbsp;├─ <span class="file">mcp_server.py</span> <span class="note">← MCP server (Claude Code)</span></div>
+          <div>&nbsp;&nbsp;├─ <span class="file">redshift_client.py</span> <span class="note">← shared DB connection</span></div>
+          <div>&nbsp;&nbsp;├─ <span class="file">lambda_handler.py</span> <span class="note">← AWS Lambda wrapper</span></div>
+          <div>&nbsp;&nbsp;├─ <span class="file">requirements.txt</span></div>
+          <div>&nbsp;&nbsp;└─ <span class="file">.env.example</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Salesforce files changed</h3>
+        <div class="tree">
+          <div><span class="dir">classes/</span></div>
+          <div>&nbsp;&nbsp;└─ <span class="file">ExternalBIService.cls</span> <span class="note">← HTTP callout</span></div>
+          <div style="margin-top:0.5rem"><span class="dir">namedCredentials/</span></div>
+          <div>&nbsp;&nbsp;└─ <span class="file">External_BI.namedCredential</span> <span class="note">← endpoint URL</span></div>
+          <div style="margin-top:0.5rem"><span class="dir">remoteSiteSettings/</span></div>
+          <div>&nbsp;&nbsp;└─ <span class="file">External_BI.remoteSite</span> <span class="note">← allowlist</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── STARTUP ── -->
+  <section>
+    <h2>Running the Server</h2>
+    <div class="card">
+      <h3 style="margin-bottom:0.6rem">Local Development</h3>
+      <pre><code><span class="cm"># From the bi-server/ directory</span>
+<span class="kw">cd</span> bi-server
+<span class="kw">source</span> venv/bin/activate
+
+<span class="kw">export</span> REDSHIFT_HOST=prod-gdw-database.business.aws.lexisnexis.com
+<span class="kw">export</span> REDSHIFT_DATABASE=gdw
+<span class="kw">export</span> REDSHIFT_PORT=5439
+<span class="kw">export</span> REDSHIFT_USER=patelgv
+<span class="kw">export</span> REDSHIFT_PASSWORD=<span class="str">'your-password'</span>
+
+uvicorn api_server:app --host 0.0.0.0 --port 8000</code></pre>
+
+      <h3 style="margin-bottom:0.6rem; margin-top:1.25rem">Expose to Salesforce via ngrok (development)</h3>
+      <pre><code>ngrok http 8000
+<span class="cm"># Copy the https://xxxx.ngrok.io URL</span>
+<span class="cm"># → Update Named Credential "External BI" endpoint in Salesforce Setup</span></code></pre>
+
+      <h3 style="margin-bottom:0.6rem; margin-top:1.25rem">Health Check</h3>
+      <pre><code>curl http://localhost:8000/health
+<span class="cm"># → {"status": "ok"}</span>
+
+curl <span class="str">"http://localhost:8000/metrics?entityId=001f400000wwOihAAE"</span>
+<span class="cm"># → real revenue + opportunities + cases JSON</span></code></pre>
+    </div>
+  </section>
+
+  <!-- ── SALESFORCE CONFIG ── -->
+  <section>
+    <h2>Salesforce Configuration</h2>
+    <div class="card">
+      <div class="alert">
+        <strong>VPN required:</strong> The Redshift cluster is in the LexisNexis internal network. The BI server must run on a machine connected to the corporate VPN, or be deployed as an AWS Lambda inside the same VPC.
+      </div>
+      <table>
+        <thead>
+          <tr><th>Setting</th><th>Value</th><th>Where</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Named Credential name</td>
+            <td><code class="inline">External_BI</code></td>
+            <td>Setup → Named Credentials</td>
+          </tr>
+          <tr>
+            <td>Endpoint URL (dev)</td>
+            <td><code class="inline">https://xxxx.ngrok.io/api</code></td>
+            <td>Named Credential → Edit</td>
+          </tr>
+          <tr>
+            <td>Endpoint URL (prod)</td>
+            <td><code class="inline">https://your-api-gateway.amazonaws.com/prod/api</code></td>
+            <td>Named Credential → Edit</td>
+          </tr>
+          <tr>
+            <td>Authentication</td>
+            <td><code class="inline">No Authentication</code> (add API key header for prod)</td>
+            <td>Named Credential → Edit</td>
+          </tr>
+          <tr>
+            <td>Remote Site Setting</td>
+            <td><code class="inline">External_BI</code> — same domain as Named Credential</td>
+            <td>Setup → Remote Site Settings</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── PROD PATH ── -->
+  <section>
+    <h2>Production Deployment (AWS Lambda)</h2>
+    <div class="card">
+      <p style="font-size:0.88rem; color:#555; margin-bottom:1rem">For Salesforce to call Redshift from the cloud, deploy <code class="inline">lambda_handler.py</code> as a Lambda function inside the same VPC as the Redshift cluster.</p>
+      <pre><code><span class="cm"># 1. Package the function</span>
+pip install -r requirements.txt -t ./package
+cp *.py ./package/
+<span class="kw">cd</span> package && zip -r ../bi_lambda.zip . && <span class="kw">cd</span> ..
+
+<span class="cm"># 2. Deploy via AWS CLI</span>
+aws lambda create-function \
+  --function-name bi-server \
+  --runtime python3.12 \
+  --handler lambda_handler.handler \
+  --zip-file fileb://bi_lambda.zip \
+  --role arn:aws:iam::ACCOUNT:role/lambda-redshift-role \
+  --vpc-config SubnetIds=subnet-xxx,SecurityGroupIds=sg-xxx \
+  --environment Variables="{REDSHIFT_HOST=...,REDSHIFT_USER=...,REDSHIFT_PASSWORD=...}"
+
+<span class="cm"># 3. Add API Gateway trigger → copy the HTTPS URL → update Named Credential</span></code></pre>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Generated by Claude Code &nbsp;·&nbsp; GPTLMTH52 Salesforce AI Chatbot Project &nbsp;·&nbsp; 2026
+</footer>
+
+</body>
+</html>

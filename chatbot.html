@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Salesforce AI Chatbot — End-to-End Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --sf-blue-dark:   #032d60;
+      --sf-blue:        #0176d3;
+      --sf-blue-light:  #1589ee;
+      --sf-blue-50:     #f0f7ff;
+      --sf-blue-100:    #d8edff;
+      --sf-purple:      #6b21a8;
+      --sf-purple-mid:  #7e3af2;
+      --sf-purple-50:   #f5f0ff;
+      --sf-green-dark:  #166534;
+      --sf-green:       #15803d;
+      --sf-green-50:    #f0fff4;
+      --sf-orange:      #e07b1a;
+      --sf-orange-50:   #fff8f0;
+      --sf-red:         #c00;
+      --sf-teal:        #0e7490;
+      --bg:             #f3f6fb;
+      --surface:        #ffffff;
+      --border:         #e3e8ef;
+      --border-strong:  #c8d2de;
+      --text-primary:   #0a1929;
+      --text-secondary: #4a5568;
+      --text-muted:     #718096;
+      --radius-sm:      6px;
+      --radius-md:      10px;
+      --radius-lg:      14px;
+      --shadow-sm:      0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md:      0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+      --shadow-lg:      0 8px 24px rgba(0,0,0,.10), 0 4px 8px rgba(0,0,0,.05);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+
+    /* ═══ HEADER ═══ */
+    header {
+      background: linear-gradient(140deg, #021a3c 0%, #032d60 35%, #0176d3 75%, #22a0f0 100%);
+      color: #fff;
+      padding: 3rem 3rem 2.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 70% 50%, rgba(21,137,238,.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    header .inner { position: relative; max-width: 1060px; margin: 0 auto; }
+    header .eyebrow {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.65);
+      margin-bottom: 0.5rem;
+    }
+    header h1 {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+      margin-bottom: 0.6rem;
+    }
+    header p { font-size: 0.93rem; opacity: 0.82; max-width: 640px; line-height: 1.6; }
+    .badges { margin-top: 1.2rem; display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .badge {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 20px;
+      padding: 0.22rem 0.8rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      backdrop-filter: blur(4px);
+    }
+
+    /* ═══ NAV ═══ */
+    nav.toc {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 3rem;
+      display: flex;
+      gap: 0;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    nav.toc a {
+      display: inline-block;
+      padding: 0.85rem 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-bottom: 2.5px solid transparent;
+      transition: color .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    nav.toc a:hover {
+      color: var(--sf-blue);
+      border-bottom-color: var(--sf-blue);
+    }
+
+    /* ═══ LAYOUT ═══ */
+    .container { max-width: 1060px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+    section { margin-bottom: 3.5rem; scroll-margin-top: 60px; }
+
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--sf-blue-dark);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+    h2::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 1.15em;
+      background: var(--sf-blue);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    h3 {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--sf-blue-dark);
+      margin-bottom: 0.65rem;
+      margin-top: 1.3rem;
+    }
+    h3:first-child { margin-top: 0; }
+    p { font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.75rem; }
+
+    /* ═══ CARD ═══ */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow .2s;
+    }
+    .card:hover { box-shadow: var(--shadow-md); }
+
+    /* ═══ OVERVIEW COLS ═══ */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.2rem 1.1rem;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+    }
+    .feature-card.fc-blue::before  { background: linear-gradient(90deg, var(--sf-blue), var(--sf-blue-light)); }
+    .feature-card.fc-purple::before { background: linear-gradient(90deg, var(--sf-purple), var(--sf-purple-mid)); }
+    .feature-card.fc-teal::before  { background: linear-gradient(90deg, var(--sf-teal), #06b6d4); }
+    .feature-card .fc-icon  { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    .feature-card .fc-title { font-size: 0.82rem; font-weight: 700; color: var(--sf-blue-dark); margin-bottom: 0.3rem; }
+    .feature-card .fc-desc  { font-size: 0.78rem; color: var(--text-muted); line-height: 1.55; }
+
+    /* ═══ DIAGRAM ═══ */
+    .diagram-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-md);
+      overflow-x: auto;
+    }
+    .diagram-wrap svg { display: block; margin: 0 auto; }
+
+    /* ═══ FLOW STEPS ═══ */
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1rem 0.5rem 1rem 0;
+      border-left: 2px solid #dde8f5;
+      margin-left: 1.1rem;
+      position: relative;
+    }
+    .step:last-child { border-left-color: transparent; }
+    .step-num {
+      flex-shrink: 0;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      font-size: 0.78rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; left: -17px; margin-right: -15px;
+      box-shadow: 0 0 0 3px var(--surface), 0 2px 6px rgba(0,0,0,.2);
+    }
+    .step-body { padding-top: 4px; }
+    .step-body strong { display: block; font-size: 0.875rem; color: var(--sf-blue-dark); margin-bottom: 3px; font-weight: 700; }
+    .step-body span   { font-size: 0.815rem; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ═══ TABLES ═══ */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius-md); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    thead tr { background: #f7f9fc; }
+    th {
+      text-align: left;
+      padding: 0.6rem 1rem;
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: var(--sf-blue-dark);
+      border-bottom: 2px solid var(--border);
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #f0f3f7;
+      vertical-align: top;
+      color: var(--text-secondary);
+      font-size: 0.83rem;
+    }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #fafbfd; }
+
+    /* ═══ CODE ═══ */
+    pre {
+      background: #0d1b2a;
+      color: #cdd6f4;
+      border-radius: var(--radius-md);
+      padding: 1.1rem 1.3rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.78rem;
+      line-height: 1.75;
+      overflow-x: auto;
+      margin-top: 0.75rem;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    code.inline {
+      background: #eef2ff;
+      color: #3451b2;
+      padding: 0.12rem 0.42rem;
+      border-radius: 4px;
+      font-size: 0.76rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-weight: 500;
+    }
+
+    /* ═══ PILLS ═══ */
+    .pill {
+      display: inline-block;
+      padding: 0.18rem 0.65rem;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+    }
+    .p-blue   { background: #dbeafe; color: #1e40af; }
+    .p-green  { background: #dcfce7; color: #166534; }
+    .p-orange { background: #ffedd5; color: #9a3412; }
+    .p-red    { background: #fee2e2; color: #991b1b; }
+    .p-gray   { background: #f1f5f9; color: #475569; }
+    .p-purple { background: #ede9fe; color: #5b21b6; }
+    .p-teal   { background: #ccfbf1; color: #0f766e; }
+
+    /* ═══ ALERT BOX ═══ */
+    .alert-box {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      border-left: 4px solid #f59e0b;
+      background: #fffbeb;
+      padding: 0.85rem 1rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: 0.84rem;
+      margin-bottom: 1rem;
+    }
+    .alert-box .alert-icon { font-size: 1rem; flex-shrink: 0; }
+    .alert-box .alert-body strong { color: #92400e; display: block; margin-bottom: 2px; }
+    .alert-box .alert-body { color: #78350f; font-size: 0.82rem; }
+
+    .info-box {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      border-left: 4px solid var(--sf-blue);
+      background: var(--sf-blue-50);
+      padding: 0.85rem 1rem;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: 0.82rem;
+      margin-bottom: 1rem;
+      color: #1e3a5f;
+    }
+
+    /* ═══ TWO / THREE COL ═══ */
+    .two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+
+    /* ═══ COMPONENT BOXES ═══ */
+    .comp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .comp-box {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem;
+      background: #fafbfd;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .comp-box:hover { border-color: var(--sf-blue); box-shadow: 0 0 0 3px rgba(1,118,211,.08); }
+    .comp-box .cb-name { font-size: 0.8rem; font-weight: 700; color: var(--sf-blue-dark); margin-bottom: 0.3rem; font-family: 'JetBrains Mono', monospace; }
+    .comp-box .cb-desc { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }
+    .comp-box .cb-badge { margin-top: 0.5rem; }
+
+    /* ═══ FILE TYPE TABLE ═══ */
+    .file-type-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+    .file-type-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem;
+      background: var(--surface);
+    }
+    .file-type-card .ft-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .file-type-card .ft-icon { font-size: 1.2rem; }
+    .file-type-card .ft-name { font-size: 0.82rem; font-weight: 700; color: var(--sf-blue-dark); }
+    .file-type-card .ft-limit { font-size: 0.7rem; color: var(--text-muted); margin-left: auto; }
+    .file-type-card dl { font-size: 0.78rem; }
+    .file-type-card dt { color: var(--text-muted); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: 0.4rem; }
+    .file-type-card dd { color: var(--text-secondary); margin-left: 0; }
+    .file-type-card.ft-rejected { border-color: #fecaca; background: #fff5f5; }
+    .file-type-card.ft-rejected .ft-name { color: var(--sf-red); }
+
+    /* ═══ SECTION DIVIDER ═══ */
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 2.5rem 0;
+    }
+
+    /* ═══ CONSTRAINT CARDS ═══ */
+    .constraint-item {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #f0f3f7;
+    }
+    .constraint-item:last-child { border-bottom: none; }
+    .constraint-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+    .constraint-body strong { display: block; font-size: 0.84rem; color: var(--sf-blue-dark); margin-bottom: 2px; }
+    .constraint-body span { font-size: 0.8rem; color: var(--text-secondary); }
+
+    /* ═══ CALLOUT ORDERING BANNER ═══ */
+    .callout-order {
+      background: linear-gradient(135deg, #fff8f0, #fff);
+      border: 1px solid #fed7aa;
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .callout-order .co-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #9a3412;
+      flex-shrink: 0;
+    }
+    .callout-order .co-steps {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .co-step {
+      background: #fff;
+      border: 1px solid #fed7aa;
+      border-radius: 20px;
+      padding: 0.18rem 0.7rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #9a3412;
+    }
+    .co-arrow { color: #f59e0b; font-size: 0.9rem; }
+
+    /* ═══ FOOTER ═══ */
+    footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      padding: 2rem 1rem 2.5rem;
+      border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+    footer span { color: var(--sf-blue); }
+
+    /* ═══ RESPONSIVE ═══ */
+    @media (max-width: 768px) {
+      .two-col, .three-col, .feature-grid, .file-type-grid {
+        grid-template-columns: 1fr;
+      }
+      nav.toc { padding: 0 1rem; overflow-x: auto; flex-wrap: nowrap; }
+      nav.toc a { padding: 0.75rem 0.65rem; }
+      header { padding: 2rem 1.5rem; }
+      .container { padding: 2rem 1rem; }
+      header h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════════ -->
+<header>
+  <div class="inner">
+    <div class="eyebrow">Salesforce DX · API v62.0 · gprlmth5@gmail.com</div>
+    <h1>Salesforce AI Chatbot<br>End-to-End Architecture</h1>
+    <p>LWC + Apex + OpenAI chatbot embedded in Salesforce record pages. Pulls live context from SOQL, external ERP, and AWS Redshift BI — then renders structured, visual AI responses with full record create/update capability.</p>
+    <div class="badges">
+      <span class="badge">Lightning Web Components</span>
+      <span class="badge">Apex / @AuraEnabled</span>
+      <span class="badge">OpenAI GPT-5.5</span>
+      <span class="badge">AWS Redshift BI</span>
+      <span class="badge">File Attachments</span>
+      <span class="badge">8 Response Types</span>
+      <span class="badge">Record Create / Update</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════
+     STICKY NAV
+════════════════════════════════════════════════════ -->
+<nav class="toc">
+  <a href="#overview">Overview</a>
+  <a href="#arch-diagram">Diagram</a>
+  <a href="#read-flow">Read Flow</a>
+  <a href="#write-flow">Write Flow</a>
+  <a href="#attachment-flow">File Attachments</a>
+  <a href="#lwc-components">LWC Components</a>
+  <a href="#apex-layer">Apex Layer</a>
+  <a href="#response-types">Response Types</a>
+  <a href="#data-model">Data Model</a>
+  <a href="#external">External Services</a>
+  <a href="#constraints">Constraints</a>
+  <a href="#deploy">Deploy</a>
+</nav>
+
+<div class="container">
+
+  <!-- ═══ OVERVIEW ═══ -->
+  <section id="overview">
+    <h2>Overview</h2>
+    <div class="card">
+      <p>The chatbot is embedded as a <strong>Utility Bar component</strong> (or placed on any record page via <code class="inline">chatbotDrawer</code>). When a user opens any record page (Account, Contact, Opportunity, Case, Lead), the chatbot auto-detects the page context and provides AI-powered answers and actions for that specific record.</p>
+      <p>Every message goes through a <strong>3-callout pipeline</strong>: Salesforce context is built (SOQL), external data is fetched (ERP + BI), then the LLM is called (OpenAI GPT-5.5). All HTTP callouts happen <em>before</em> any DML to comply with Salesforce's callout-before-DML governor restriction. Users can optionally attach image, PDF, or text files for analysis in the same turn.</p>
+      <p style="margin-bottom:0">The LLM responds with one of <strong>8 structured JSON response types</strong> — rendered by dedicated LWC child components for rich visual output: KPI cards, charts, comparison tables, timelines, alerts, record summaries, and record action confirmation cards.</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card fc-blue">
+        <div class="fc-icon">🖥️</div>
+        <div class="fc-title">Frontend — 8 LWC Components</div>
+        <div class="fc-desc"><code class="inline">chatbotShell</code> owns all state. <code class="inline">responseRenderer</code> routes to the correct visual component by <code class="inline">responseType</code>. <code class="inline">chatbotDrawer</code> provides a floating FAB for non-utility-bar pages.</div>
+      </div>
+      <div class="feature-card fc-purple">
+        <div class="fc-icon">⚙️</div>
+        <div class="fc-title">Backend — 7 Apex Classes</div>
+        <div class="fc-desc"><code class="inline">ChatbotController</code> is the <code class="inline">@AuraEnabled</code> entry point. All 3 callouts (ERP, BI, OpenAI) complete before any DML. File attachments serialized to JSON and passed end-to-end.</div>
+      </div>
+      <div class="feature-card fc-teal">
+        <div class="fc-icon">🤖</div>
+        <div class="fc-title">AI + External Data</div>
+        <div class="fc-desc">OpenAI GPT-5.5 via Named Credential. BI data from AWS Redshift via Python FastAPI. ERP data via HTTP template. Multimodal messages for image/PDF/text attachments.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ARCHITECTURE DIAGRAM ═══ -->
+  <section id="arch-diagram">
+    <h2>Architecture Diagram</h2>
+    <div class="diagram-wrap">
+      <svg width="980" height="640" viewBox="0 0 980 640" xmlns="http://www.w3.org/2000/svg"
+           font-family="'Inter', 'Segoe UI', system-ui, sans-serif">
+        <defs>
+          <marker id="aB" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#0176d3"/>
+          </marker>
+          <marker id="aG" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#15803d"/>
+          </marker>
+          <marker id="aO" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#e07b1a"/>
+          </marker>
+          <marker id="aP" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#7b2fbe"/>
+          </marker>
+          <marker id="aGy" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="#888"/>
+          </marker>
+          <linearGradient id="laneBlue" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#eef6ff"/>
+            <stop offset="100%" stop-color="#f5f9ff"/>
+          </linearGradient>
+          <linearGradient id="lanePurple" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f3efff"/>
+            <stop offset="100%" stop-color="#f8f5ff"/>
+          </linearGradient>
+          <linearGradient id="laneOrange" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fff7f0"/>
+            <stop offset="100%" stop-color="#fffaf5"/>
+          </linearGradient>
+          <linearGradient id="laneGreen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#edfff5"/>
+            <stop offset="100%" stop-color="#f3fff8"/>
+          </linearGradient>
+        </defs>
+
+        <!-- ═ LANE BACKGROUNDS ═ -->
+        <rect x="10"  y="30" width="215" height="585" rx="12" fill="url(#laneBlue)"   stroke="#b8d4f0" stroke-width="1.5"/>
+        <text x="117" y="52" text-anchor="middle" font-size="10.5" font-weight="800" fill="#0176d3" letter-spacing="0.08em">LWC COMPONENTS</text>
+
+        <rect x="240" y="30" width="245" height="585" rx="12" fill="url(#lanePurple)" stroke="#c8b0e8" stroke-width="1.5"/>
+        <text x="362" y="52" text-anchor="middle" font-size="10.5" font-weight="800" fill="#6b21a8" letter-spacing="0.08em">APEX LAYER</text>
+
+        <rect x="500" y="30" width="215" height="585" rx="12" fill="url(#laneOrange)" stroke="#f0c896" stroke-width="1.5"/>
+        <text x="607" y="52" text-anchor="middle" font-size="10.5" font-weight="800" fill="#8c4b00" letter-spacing="0.08em">EXTERNAL DATA</text>
+
+        <rect x="730" y="30" width="240" height="585" rx="12" fill="url(#laneGreen)"  stroke="#a0d8b0" stroke-width="1.5"/>
+        <text x="850" y="52" text-anchor="middle" font-size="10.5" font-weight="800" fill="#166534" letter-spacing="0.08em">STORAGE &amp; CONFIG</text>
+
+        <!-- ═ LWC ═ -->
+        <!-- chatbotShell -->
+        <rect x="25"  y="68" width="185" height="48" rx="7" fill="#0176d3"/>
+        <text x="117" y="89"  text-anchor="middle" font-size="11" font-weight="700" fill="#fff">chatbotShell</text>
+        <text x="117" y="106" text-anchor="middle" font-size="9"   fill="rgba(255,255,255,.85)">state · Apex calls · NavigationMixin</text>
+
+        <!-- chatbotInput -->
+        <rect x="25"  y="137" width="88" height="44" rx="7" fill="#1589ee"/>
+        <text x="69"  y="155" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff">chatbotInput</text>
+        <text x="69"  y="171" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">textarea + chips + attach</text>
+
+        <!-- chatbotHistory -->
+        <rect x="122" y="137" width="88" height="44" rx="7" fill="#1589ee"/>
+        <text x="166" y="155" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff">chatbotHistory</text>
+        <text x="166" y="171" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">messages + attach pills</text>
+
+        <!-- chatbotDrawer -->
+        <rect x="25"  y="193" width="88" height="38" rx="7" fill="#3b82f6"/>
+        <text x="69"  y="209" text-anchor="middle" font-size="9"   font-weight="700" fill="#fff">chatbotDrawer</text>
+        <text x="69"  y="223" text-anchor="middle" font-size="7.5" fill="rgba(255,255,255,.85)">FAB / slide drawer</text>
+
+        <!-- responseRenderer -->
+        <rect x="25"  y="246" width="185" height="40" rx="7" fill="#005fb2"/>
+        <text x="117" y="263" text-anchor="middle" font-size="10"  font-weight="700" fill="#fff">responseRenderer</text>
+        <text x="117" y="278" text-anchor="middle" font-size="8.5" fill="rgba(255,255,255,.85)">routes by responseType</text>
+
+        <!-- display components rows -->
+        <rect x="25"  y="300" width="85" height="36" rx="6" fill="#014486"/>
+        <text x="67"  y="315" text-anchor="middle" font-size="8"   font-weight="700" fill="#fff">kpiCardGrid</text>
+        <text x="67"  y="328" text-anchor="middle" font-size="7"   fill="rgba(255,255,255,.8)">metrics + trends</text>
+
+        <rect x="120" y="300" width="90" height="36" rx="6" fill="#014486"/>
+        <text x="165" y="315" text-anchor="middle" font-size="8"   font-weight="700" fill="#fff">chartWidget</text>
+        <text x="165" y="328" text-anchor="middle" font-size="7"   fill="rgba(255,255,255,.8)">bar/line/donut</text>
+
+        <rect x="25"  y="346" width="85" height="36" rx="6" fill="#014486"/>
+        <text x="67"  y="361" text-anchor="middle" font-size="8"   font-weight="700" fill="#fff">comparison</text>
+        <text x="67"  y="374" text-anchor="middle" font-size="7"   fill="rgba(255,255,255,.8)">SF vs external</text>
+
+        <rect x="120" y="346" width="90" height="36" rx="6" fill="#014486"/>
+        <text x="165" y="361" text-anchor="middle" font-size="8"   font-weight="700" fill="#fff">timelineView</text>
+        <text x="165" y="374" text-anchor="middle" font-size="7"   fill="rgba(255,255,255,.8)">activity sequences</text>
+
+        <rect x="25"  y="392" width="53" height="36" rx="6" fill="#014486"/>
+        <text x="51"  y="407" text-anchor="middle" font-size="8"   font-weight="700" fill="#fff">alert</text>
+        <text x="51"  y="420" text-anchor="middle" font-size="7"   fill="rgba(255,255,255,.8)">Banner</text>
+
+        <rect x="86"  y="392" width="60" height="36" rx="6" fill="#014486"/>
+        <text x="116" y="407" text-anchor="middle" font-size="8"   font-weight="700" fill="#fff">record</text>
+        <text x="116" y="420" text-anchor="middle" font-size="7"   fill="rgba(255,255,255,.8)">ActionCard</text>
+
+        <rect x="154" y="392" width="56" height="36" rx="6" fill="#014486"/>
+        <text x="182" y="407" text-anchor="middle" font-size="8"   font-weight="700" fill="#fff">record</text>
+        <text x="182" y="420" text-anchor="middle" font-size="7"   fill="rgba(255,255,255,.8)">Summary</text>
+
+        <!-- notes -->
+        <rect x="25"  y="444" width="185" height="30" rx="6" fill="#e8f0fe" stroke="#b8cef8" stroke-width="1"/>
+        <text x="117" y="461" text-anchor="middle" font-size="8.5" fill="#0039b3">NavigationMixin · recordnavigate event</text>
+
+        <rect x="25"  y="483" width="185" height="30" rx="6" fill="#e8f0fe" stroke="#b8cef8" stroke-width="1"/>
+        <text x="117" y="496" text-anchor="middle" font-size="8.5" fill="#0039b3">Chart.js UMD static resource</text>
+        <text x="117" y="508" text-anchor="middle" font-size="7.5" fill="#0039b3">Array.from() clone before passing</text>
+
+        <!-- ═ APEX ═ -->
+        <rect x="255" y="68"  width="215" height="58" rx="7" fill="#6b21a8"/>
+        <text x="362" y="91"  text-anchor="middle" font-size="11"  font-weight="700" fill="#fff">ChatbotController</text>
+        <text x="362" y="107" text-anchor="middle" font-size="9"   fill="rgba(255,255,255,.85)">sendMessage(5) · executeRecordAction</text>
+        <text x="362" y="120" text-anchor="middle" font-size="9"   fill="rgba(255,255,255,.85)">getConversationHistory · clearHistory</text>
+
+        <rect x="255" y="148" width="215" height="46" rx="7" fill="#7e3af2"/>
+        <text x="362" y="168" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">ContextBuilderService</text>
+        <text x="362" y="183" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">SOQL all fields + related objects</text>
+
+        <rect x="255" y="216" width="215" height="48" rx="7" fill="#9333ea"/>
+        <text x="362" y="237" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">LLMService</text>
+        <text x="362" y="253" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">system prompt · multimodal · retry</text>
+
+        <rect x="255" y="286" width="100" height="40" rx="7" fill="#a855f7"/>
+        <text x="305" y="304" text-anchor="middle" font-size="9"   font-weight="700" fill="#fff">ResponseDTO</text>
+        <text x="305" y="318" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">parse 8 schemas</text>
+
+        <rect x="365" y="286" width="105" height="40" rx="7" fill="#a855f7"/>
+        <text x="417" y="302" text-anchor="middle" font-size="9"   font-weight="700" fill="#fff">enrichSummary</text>
+        <text x="417" y="316" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">RecordIds()</text>
+
+        <rect x="255" y="348" width="215" height="54" rx="7" fill="#7e3af2"/>
+        <text x="362" y="369" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">RecordActionService</text>
+        <text x="362" y="384" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">CREATE / UPDATE DML</text>
+        <text x="362" y="397" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">duplicate + ambiguity checks</text>
+
+        <rect x="255" y="418" width="215" height="26" rx="6" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1"/>
+        <text x="362" y="434" text-anchor="middle" font-size="8.5" fill="#6b21a8">All classes: with sharing (record-level security)</text>
+
+        <rect x="255" y="453" width="215" height="38" rx="6" fill="#fefce8" stroke="#fde68a" stroke-width="1"/>
+        <text x="362" y="468" text-anchor="middle" font-size="8.5" fill="#92400e" font-weight="700">⚡ Governor Rule</text>
+        <text x="362" y="481" text-anchor="middle" font-size="8"   fill="#92400e">All callouts BEFORE any DML</text>
+
+        <!-- ═ EXTERNAL DATA ═ -->
+        <rect x="515" y="68"  width="185" height="56" rx="7" fill="#10a37f"/>
+        <text x="607" y="91"  text-anchor="middle" font-size="11"  font-weight="700" fill="#fff">OpenAI GPT-5.5</text>
+        <text x="607" y="107" text-anchor="middle" font-size="9"   fill="rgba(255,255,255,.85)">Named Credential: OpenAI_GPT</text>
+        <text x="607" y="120" text-anchor="middle" font-size="9"   fill="rgba(255,255,255,.85)">/v1/chat/completions · multimodal</text>
+
+        <rect x="515" y="146" width="185" height="46" rx="7" fill="#e07b1a"/>
+        <text x="607" y="166" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">External ERP</text>
+        <text x="607" y="181" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">Named Credential: External_ERP</text>
+
+        <rect x="515" y="214" width="185" height="54" rx="7" fill="#c86e18"/>
+        <text x="607" y="235" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">Redshift BI (Python API)</text>
+        <text x="607" y="250" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">Named Credential: External_BI</text>
+        <text x="607" y="264" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">GET /metrics?entityId={sfId}</text>
+
+        <rect x="515" y="290" width="185" height="46" rx="7" fill="#b45309"/>
+        <text x="607" y="310" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">AI_Config__mdt</text>
+        <text x="607" y="325" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">ApiKey · ModelName · MaxTokens</text>
+
+        <rect x="515" y="358" width="185" height="54" rx="7" fill="#0f766e"/>
+        <text x="607" y="378" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">Salesforce SOQL</text>
+        <text x="607" y="394" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">Account · Contact · Opp · Case</text>
+        <text x="607" y="407" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">Lead · Task · Order · Contract</text>
+
+        <rect x="515" y="426" width="185" height="28" rx="6" fill="#fef3c7" stroke="#fcd34d" stroke-width="1"/>
+        <text x="607" y="444" text-anchor="middle" font-size="8.5" fill="#92400e" font-weight="700">Max 3 HTTP callouts per transaction</text>
+
+        <!-- ═ STORAGE ═ -->
+        <rect x="748" y="68"  width="205" height="46" rx="7" fill="#166534"/>
+        <text x="850" y="88"  text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">ChatSession__c</text>
+        <text x="850" y="103" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">RecordId · ObjectApiName · LastActivity</text>
+
+        <rect x="748" y="136" width="205" height="46" rx="7" fill="#15803d"/>
+        <text x="850" y="156" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">ChatMessage__c</text>
+        <text x="850" y="171" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">Session · Role · Content · ResponseType</text>
+
+        <rect x="748" y="202" width="205" height="38" rx="7" fill="#166534" stroke="#86efac" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="850" y="219" text-anchor="middle" font-size="9"   font-weight="700" fill="#fff">getConversationHistory()</text>
+        <text x="850" y="232" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">loads last 50 msgs on mount</text>
+
+        <rect x="748" y="250" width="205" height="38" rx="7" fill="#166534" stroke="#86efac" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="850" y="267" text-anchor="middle" font-size="9"   font-weight="700" fill="#fff">clearConversationHistory()</text>
+        <text x="850" y="280" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">deletes ChatMessages + ChatSession</text>
+
+        <rect x="748" y="300" width="205" height="46" rx="7" fill="#14532d"/>
+        <text x="850" y="320" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">Org Configuration</text>
+        <text x="850" y="335" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">Utility Bar · API v62.0</text>
+
+        <rect x="748" y="358" width="205" height="54" rx="7" fill="#166534"/>
+        <text x="850" y="378" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">Named Credentials</text>
+        <text x="850" y="394" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">OpenAI_GPT · External_ERP</text>
+        <text x="850" y="407" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">External_BI</text>
+
+        <!-- ═ ARROWS ═ -->
+        <line x1="210" y1="92"  x2="255" y2="92"  stroke="#0176d3" stroke-width="2" marker-end="url(#aB)"/>
+        <text x="232" y="87" text-anchor="middle" font-size="8" fill="#0176d3" font-weight="700">call</text>
+
+        <line x1="117" y1="116" x2="69"  y2="137" stroke="#4ba3f5" stroke-width="1.5" marker-end="url(#aB)"/>
+        <line x1="117" y1="116" x2="166" y2="137" stroke="#4ba3f5" stroke-width="1.5" marker-end="url(#aB)"/>
+        <line x1="117" y1="116" x2="117" y2="246" stroke="#4ba3f5" stroke-width="1.5" marker-end="url(#aB)"/>
+        <line x1="117" y1="286" x2="117" y2="300" stroke="#4ba3f5" stroke-width="1.5" marker-end="url(#aB)"/>
+
+        <line x1="362" y1="126" x2="362" y2="148" stroke="#9333ea" stroke-width="2"   marker-end="url(#aP)"/>
+        <line x1="380" y1="126" x2="380" y2="216" stroke="#9333ea" stroke-width="2"   stroke-dasharray="4,2" marker-end="url(#aP)"/>
+        <line x1="362" y1="264" x2="305" y2="286" stroke="#9333ea" stroke-width="1.5" marker-end="url(#aP)"/>
+        <line x1="362" y1="264" x2="417" y2="286" stroke="#9333ea" stroke-width="1.5" marker-end="url(#aP)"/>
+        <line x1="340" y1="126" x2="280" y2="348" stroke="#9333ea" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#aP)"/>
+
+        <line x1="470" y1="170" x2="515" y2="386" stroke="#e07b1a" stroke-width="1.8" marker-end="url(#aO)"/>
+        <line x1="470" y1="158" x2="515" y2="169" stroke="#e07b1a" stroke-width="1.8" marker-end="url(#aO)"/>
+        <line x1="470" y1="166" x2="515" y2="237" stroke="#e07b1a" stroke-width="1.8" marker-end="url(#aO)"/>
+
+        <line x1="470" y1="240" x2="515" y2="96"  stroke="#10a37f" stroke-width="2"   marker-end="url(#aG)"/>
+        <text x="493" y="170" text-anchor="middle" font-size="8" fill="#10a37f" font-weight="700" transform="rotate(-58,493,170)">HTTP POST</text>
+
+        <line x1="470" y1="248" x2="515" y2="313" stroke="#b45309" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#aO)"/>
+
+        <line x1="470" y1="90"  x2="748" y2="90"  stroke="#15803d" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#aG)"/>
+        <text x="609" y="85" text-anchor="middle" font-size="8" fill="#15803d" font-weight="700">DML (after callouts)</text>
+
+        <line x1="748" y1="222" x2="470" y2="103" stroke="#15803d" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#aG)"/>
+
+        <line x1="255" y1="106" x2="210" y2="106" stroke="#0176d3" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#aB)"/>
+        <text x="232" y="120" text-anchor="middle" font-size="8" fill="#0176d3" font-weight="700">JSON</text>
+
+        <!-- ═ LEGEND ═ -->
+        <rect x="10" y="530" width="960" height="100" rx="8" fill="#f8fafc" stroke="#e3e8ef" stroke-width="1"/>
+        <text x="30" y="551" font-size="10" font-weight="800" fill="#032d60">LEGEND</text>
+
+        <line x1="30"  y1="570" x2="65"  y2="570" stroke="#0176d3" stroke-width="2" marker-end="url(#aB)"/>
+        <text x="70"  y="574" font-size="9" fill="#444">LWC ↔ Apex @AuraEnabled</text>
+
+        <line x1="210" y1="570" x2="245" y2="570" stroke="#9333ea" stroke-width="2" marker-end="url(#aP)"/>
+        <text x="250" y="574" font-size="9" fill="#444">Apex internal call</text>
+
+        <line x1="370" y1="570" x2="405" y2="570" stroke="#10a37f" stroke-width="2" marker-end="url(#aG)"/>
+        <text x="410" y="574" font-size="9" fill="#444">HTTP callout (Named Credential)</text>
+
+        <line x1="580" y1="570" x2="615" y2="570" stroke="#15803d" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#aG)"/>
+        <text x="620" y="574" font-size="9" fill="#444">DML (after all callouts)</text>
+
+        <line x1="790" y1="570" x2="825" y2="570" stroke="#888" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#aGy)"/>
+        <text x="830" y="574" font-size="9" fill="#444">Config / optional</text>
+
+        <text x="30"  y="600" font-size="9" fill="#666">🟦 LWC &nbsp;&nbsp; 🟪 Apex &nbsp;&nbsp; 🟧 External Services &nbsp;&nbsp; 🟩 Storage / Config</text>
+        <text x="30"  y="616" font-size="8.5" fill="#888">Callout order: ContextBuilderService (ERP #1 + BI #2) → LLMService (OpenAI #3) → getOrCreateSession() DML → saveChatMessage() DML</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ═══ READ FLOW ═══ -->
+  <section id="read-flow">
+    <h2>Read Flow — Answering a Question</h2>
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" style="background:#0176d3;color:#fff">1</div>
+          <div class="step-body">
+            <strong>User types a message in chatbotInput (optionally attaches a file)</strong>
+            <span>The textarea fires a <code class="inline">messagesend</code> custom event with <code class="inline">{ message, attachment }</code>. Attachment is a JSON object produced by the browser <code class="inline">FileReader</code> API. Suggestion chips fire the same event with pre-defined prompts ("Summarize this record", "What are the risks?").</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#0176d3;color:#fff">2</div>
+          <div class="step-body">
+            <strong>chatbotShell calls ChatbotController.sendMessage()</strong>
+            <span>Passes <code class="inline">userMessage</code>, <code class="inline">recordId</code>, <code class="inline">objectApiName</code>, serialized <code class="inline">conversationHistoryJson</code> (last 10 turns), and <code class="inline">attachmentJson</code> (null if no file). On API failure the user message is popped from <code class="inline">conversationHistory</code> so retries don't inflate context.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#7e3af2;color:#fff">3</div>
+          <div class="step-body">
+            <strong>ContextBuilderService.buildContext() — SOQL phase</strong>
+            <span>Dynamic SOQL queries all fields on the current record. Queries related objects per page type: Contacts (10), Opportunities (10), Cases (10), Tasks (10), Orders (5), Contracts (5), Quotes (5) — each individually try-caught so missing/disabled objects silently skip.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#e07b1a;color:#fff">4</div>
+          <div class="step-body">
+            <strong>ExternalERPService.getRecordData() — HTTP callout 1</strong>
+            <span>POST to <code class="inline">callout:External_ERP</code>. Returns order history, billing, inventory data. Returns <code class="inline">available: false</code> on failure — never blocks the main flow.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#e07b1a;color:#fff">5</div>
+          <div class="step-body">
+            <strong>ExternalBIService.getMetrics() — HTTP callout 2</strong>
+            <span>GET to <code class="inline">callout:External_BI/metrics?entityId={sfId}</code>. Python FastAPI resolves the Salesforce ID to a Redshift <code class="inline">acct_id</code> and returns revenue, open opportunities, cases, and monthly trends.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#10a37f;color:#fff">6</div>
+          <div class="step-body">
+            <strong>LLMService.chat() — HTTP callout 3</strong>
+            <span>POST to <code class="inline">callout:OpenAI_GPT/v1/chat/completions</code>. Builds a multimodal messages array: system prompt (8 response schemas + 13 rules), context JSON, conversation history, user text message, and optional image/PDF/text attachment block. Model: GPT-5.5. <code class="inline">max_completion_tokens</code> from <code class="inline">AI_Config__mdt</code> (must be ≥ 4096). 429 rate limit triggers one retry.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#7e3af2;color:#fff">7</div>
+          <div class="step-body">
+            <strong>enrichSummaryRecordIds() — post-processing</strong>
+            <span>For <code class="inline">record_summary</code> responses: builds a name→Id map from context and injects missing Salesforce record IDs into section items so they render as clickable links.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#166534;color:#fff">8</div>
+          <div class="step-body">
+            <strong>DML — session + message persistence</strong>
+            <span>All callouts complete — DML is now allowed. <code class="inline">getOrCreateSession()</code> upserts a <code class="inline">ChatSession__c</code>. <code class="inline">saveChatMessage()</code> inserts user and assistant <code class="inline">ChatMessage__c</code> records (content truncated at 131,072 chars). Attachment data is <em>not</em> persisted — it is one-shot context for the current turn.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#0176d3;color:#fff">9</div>
+          <div class="step-body">
+            <strong>responseRenderer routes to the correct display component</strong>
+            <span>Reads <code class="inline">responseType</code> and renders: <code class="inline">kpiCardGrid</code>, <code class="inline">chartWidget</code>, <code class="inline">comparisonTable</code>, <code class="inline">timelineView</code>, <code class="inline">alertBanner</code>, <code class="inline">recordActionCard</code>, <code class="inline">recordSummary</code>, or inline summary sections.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="callout-order">
+      <div class="co-label">⚡ Callout Order</div>
+      <div class="co-steps">
+        <span class="co-step">① ERP callout</span>
+        <span class="co-arrow">→</span>
+        <span class="co-step">② BI callout</span>
+        <span class="co-arrow">→</span>
+        <span class="co-step">③ OpenAI callout</span>
+        <span class="co-arrow">→</span>
+        <span class="co-step">④ getOrCreateSession() DML</span>
+        <span class="co-arrow">→</span>
+        <span class="co-step">⑤ saveChatMessage() DML</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ WRITE FLOW ═══ -->
+  <section id="write-flow">
+    <h2>Write Flow — Creating or Updating a Record</h2>
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num" style="background:#0176d3;color:#fff">1</div>
+          <div class="step-body">
+            <strong>LLM returns responseType "record_action"</strong>
+            <span>When the user asks to create or update a record. The LLM automatically applies parent associations (AccountId, WhatId, WhoId) based on the current page object and applies required field defaults (CloseDate, StageName, Status, etc.).</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#0176d3;color:#fff">2</div>
+          <div class="step-body">
+            <strong>recordActionCard renders a confirmation card</strong>
+            <span>Shows operation (Create/Update), object type, and a field table. User clicks <strong>Confirm</strong> or <strong>Cancel</strong>. Confirmation fires a <code class="inline">recordactionconfirm</code> event that bubbles up to <code class="inline">chatbotShell</code>.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#7e3af2;color:#fff">3</div>
+          <div class="step-body">
+            <strong>ChatbotController.executeRecordAction()</strong>
+            <span>Calls <code class="inline">RecordActionService.executeAction()</code> with <code class="inline">objectApiName</code>, <code class="inline">operation</code> (create/update), <code class="inline">recordId</code> (for updates), <code class="inline">fields</code> map, <code class="inline">currentPageRecordId</code>, and <code class="inline">bypassDuplicate</code> flag.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#7e3af2;color:#fff">4</div>
+          <div class="step-body">
+            <strong>Ambiguity check (UPDATE only — skipped for current page record)</strong>
+            <span>Searches for other records with the same name/identity fields. If multiple matches found → blocked. Returns a response listing all candidates with their Record IDs so the user can specify which one to update.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#7e3af2;color:#fff">5</div>
+          <div class="step-body">
+            <strong>Duplicate value check (CREATE + UPDATE)</strong>
+            <span>Checks whether the new field values collide with existing records. Contact: Email → FirstName+LastName. Account: Name. Opportunity: Name+AccountId. Case: Subject+AccountId. If duplicate found and <code class="inline">bypassDuplicate=false</code> → blocked with "Proceed Anyway" option.</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num" style="background:#166534;color:#fff">6</div>
+          <div class="step-body">
+            <strong>DML — insert or update SObject</strong>
+            <span>Performs the actual <code class="inline">insert</code> or <code class="inline">update</code>. Returns the new/updated record ID. chatbotShell renders a success alert; the user can click the Record ID to navigate directly to the new record.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ FILE ATTACHMENT FLOW ═══ -->
+  <section id="attachment-flow">
+    <h2>File Attachment Flow</h2>
+    <div class="card">
+      <p>Users can attach a file using the <code class="inline">+</code> button in <code class="inline">chatbotInput</code>. The file is read entirely client-side using the browser's <code class="inline">FileReader</code> API and serialized as JSON. This JSON is passed through the <code class="inline">messagesend</code> event → <code class="inline">chatbotShell</code> → <code class="inline">ChatbotController.sendMessage(attachmentJson)</code> → <code class="inline">LLMService.chat(attachmentJson)</code>, where it is included in the multimodal OpenAI message for the current turn only.</p>
+      <p style="margin-bottom:0.75rem">Attachments are <strong>not persisted</strong> to <code class="inline">ChatMessage__c</code> — only the text content of each turn is stored. The attachment pill shown in <code class="inline">chatbotHistory</code> is a UI-only affordance derived from the filename passed to <code class="inline">addMessage()</code>.</p>
+      <div class="file-type-grid">
+        <div class="file-type-card">
+          <div class="ft-header">
+            <span class="ft-icon">🖼️</span>
+            <span class="ft-name">Images</span>
+            <span class="ft-limit pill p-blue">≤ 3 MB</span>
+          </div>
+          <dl>
+            <dt>Types</dt><dd>jpg, png, gif, webp</dd>
+            <dt>Client handling</dt><dd><code class="inline">readAsDataURL</code> → base64 data URL</dd>
+            <dt>OpenAI format</dt><dd><code class="inline">content</code> array with <code class="inline">image_url</code> block</dd>
+            <dt>Attachment JSON</dt><dd><code class="inline">{ type:"image", name, mimeType, base64Data }</code></dd>
+          </dl>
+        </div>
+        <div class="file-type-card">
+          <div class="ft-header">
+            <span class="ft-icon">📄</span>
+            <span class="ft-name">PDF</span>
+            <span class="ft-limit pill p-blue">≤ 3 MB</span>
+          </div>
+          <dl>
+            <dt>Types</dt><dd>.pdf</dd>
+            <dt>Client handling</dt><dd><code class="inline">readAsDataURL</code> → base64 data URL</dd>
+            <dt>OpenAI format</dt><dd><code class="inline">content</code> array with <code class="inline">file</code> block (<code class="inline">filename</code> + <code class="inline">file_data</code>)</dd>
+            <dt>Attachment JSON</dt><dd><code class="inline">{ type:"pdf", name, mimeType, base64Data }</code></dd>
+          </dl>
+        </div>
+        <div class="file-type-card">
+          <div class="ft-header">
+            <span class="ft-icon">📊</span>
+            <span class="ft-name">Text / CSV / JSON</span>
+            <span class="ft-limit pill p-blue">≤ 500 KB</span>
+          </div>
+          <dl>
+            <dt>Types</dt><dd>.csv, .txt, .json</dd>
+            <dt>Client handling</dt><dd><code class="inline">readAsText</code> → plain string</dd>
+            <dt>OpenAI format</dt><dd>Appended as <code class="inline">[Attached file: name]\n...</code> in user text block</dd>
+            <dt>Attachment JSON</dt><dd><code class="inline">{ type:"text", name, content }</code></dd>
+          </dl>
+        </div>
+        <div class="file-type-card ft-rejected">
+          <div class="ft-header">
+            <span class="ft-icon">🚫</span>
+            <span class="ft-name">DOCX / DOC — Rejected</span>
+          </div>
+          <dl>
+            <dt>Types</dt><dd>.docx, .doc</dd>
+            <dt>Client handling</dt><dd>Rejected client-side — fires <code class="inline">attacherror</code> event with friendly toast</dd>
+            <dt>Reason</dt><dd>Binary format; no supported OpenAI block type</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+    <div class="info-box">
+      <div>The 3 MB limit for images/PDFs stays within Salesforce's <code class="inline">@AuraEnabled</code> request-body practical limit (~4 MB after base64 encoding overhead). Text files are capped at 500 KB. <code class="inline">LLMService</code> messages list uses <code class="inline">List&lt;Map&lt;String, Object&gt;&gt;</code> (not <code class="inline">String</code>) to support both plain text and multimodal content arrays as values.</div>
+    </div>
+  </section>
+
+  <!-- ═══ LWC COMPONENTS ═══ -->
+  <section id="lwc-components">
+    <h2>LWC Components</h2>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Component</th><th>Role</th><th>Key Events / Props</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="inline">chatbotDrawer</code></td>
+              <td>Standalone fixed-position FAB that slides open a full-height drawer panel. Hosts <code class="inline">chatbotShell</code> in <code class="inline">displayMode="drawer"</code>. Can be placed on any Lightning page without App Manager setup.</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code class="inline">chatbotShell</code></td>
+              <td>Top-level container. Owns conversation state, current <code class="inline">recordId</code>/<code class="inline">objectApiName</code>, history. Dispatches to Apex for read and write. Adapts layout via <code class="inline">@api displayMode</code> (<code class="inline">utility</code> | <code class="inline">sidebar</code> | <code class="inline">drawer</code>). Minimize button hidden in sidebar/drawer modes.</td>
+              <td><code class="inline">messagesend</code>, <code class="inline">recordactionconfirm</code>, <code class="inline">recordactioncancel</code>, <code class="inline">recordnavigate</code>, <code class="inline">attacherror</code>, <code class="inline">alertproceed</code>, <code class="inline">alertcancel</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">chatbotInput</code></td>
+              <td>Textarea with suggestion chips, submit button, and <code class="inline">+</code> attach button. Hidden file input, attachment preview pill with remove button. Validates file type and size client-side using <code class="inline">FileReader</code>.</td>
+              <td>fires <code class="inline">messagesend { message, attachment }</code>, <code class="inline">attacherror { message }</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">chatbotHistory</code></td>
+              <td>Renders message list with timestamps. User bubbles show an attachment pill (filename) when a file was sent. Bubbles confirm/cancel/navigate/alert events from child components up to chatbotShell.</td>
+              <td>bubbles <code class="inline">recordactionconfirm</code>, <code class="inline">recordactioncancel</code>, <code class="inline">recordnavigate</code>, <code class="inline">alertproceed</code>, <code class="inline">alertcancel</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">responseRenderer</code></td>
+              <td>Reads <code class="inline">responseType</code> and conditionally renders the matching display component. Passes typed data prop to child.</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code class="inline">kpiCardGrid</code></td>
+              <td>Metric cards with value, label, unit, trend percentage, direction arrow, and SLDS icon alias.</td>
+              <td>prop: <code class="inline">cardData</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">chartWidget</code></td>
+              <td>Loads Chart.js from static resource. Renders bar, line, or donut charts. Arrays cloned with <code class="inline">Array.from()</code> before passing to Chart.js to avoid LWC proxy mutation errors.</td>
+              <td>prop: <code class="inline">chartSeries</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">comparisonTable</code></td>
+              <td>Side-by-side Salesforce vs external data table with highlighted diffs.</td>
+              <td>prop: <code class="inline">tableData</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">timelineView</code></td>
+              <td>Ordered event list with date, title, description, type icon, and status badge.</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td><code class="inline">alertBanner</code></td>
+              <td>Severity-based alert (critical/warning/info/success) with title, message, and detail bullets. Shows "Proceed Anyway" / "Cancel" buttons when <code class="inline">allowBypass: true</code> in data.</td>
+              <td>fires <code class="inline">alertproceed</code>, <code class="inline">alertcancel</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">recordActionCard</code></td>
+              <td>Create/Update confirmation card showing object, operation, and field table. Confirm/Cancel buttons.</td>
+              <td>fires <code class="inline">recordactionconfirm</code>, <code class="inline">recordactioncancel</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">recordSummary</code></td>
+              <td>Full record overview: header badge, KPI bar (colour-coded), sections with items. Items with <code class="inline">recordId</code> render as clickable links that open the record.</td>
+              <td>fires <code class="inline">recordnavigate</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ APEX LAYER ═══ -->
+  <section id="apex-layer">
+    <h2>Apex Layer</h2>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Class</th><th>Role</th><th>Key Methods</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="inline">ChatbotController</code></td>
+              <td><code class="inline">@AuraEnabled</code> entry point. Enforces callout-before-DML order. Orchestrates context → LLM → persist pipeline.</td>
+              <td><code class="inline">sendMessage(msg, recId, objApi, histJson, attachJson)</code> · <code class="inline">executeRecordAction()</code> · <code class="inline">getConversationHistory()</code> · <code class="inline">clearConversationHistory()</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">ContextBuilderService</code></td>
+              <td>Assembles full Salesforce context. Dynamic SOQL all fields. Related queries per object type. Calls ERP + BI services.</td>
+              <td><code class="inline">buildContext()</code> · <code class="inline">querySalesforceRecord()</code> · <code class="inline">queryRelatedRecords()</code> · <code class="inline">extractExternalId()</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">LLMService</code></td>
+              <td>Builds <code class="inline">List&lt;Map&lt;String,Object&gt;&gt;</code> messages with system prompt (8 schemas + 13 rules), context JSON, history, user text, and optional image/PDF/text attachment block. Calls OpenAI. Handles 429 retry and <code class="inline">finish_reason:length</code> error.</td>
+              <td><code class="inline">chat(history, message, context, attachmentJson)</code> · <code class="inline">executeRequest()</code> · <code class="inline">parseSuccessResponse()</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">ChatbotResponseDTO</code></td>
+              <td>Deserializes LLM JSON response into typed objects. Handles all 8 response schemas.</td>
+              <td><code class="inline">fromJson()</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">RecordActionService</code></td>
+              <td>Executes CREATE/UPDATE DML for Account, Contact, Task, Case, Opportunity. Two-phase duplicate detection (ambiguity check + new-value collision check).</td>
+              <td><code class="inline">executeAction()</code> · <code class="inline">findAmbiguousTargets()</code> · <code class="inline">findDuplicates()</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">ExternalBIService</code></td>
+              <td>HTTP GET to Redshift BI Python API. Returns revenue trends, open opps/cases, monthly predictions. Falls back gracefully on error.</td>
+              <td><code class="inline">getMetrics(externalId)</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">ExternalERPService</code></td>
+              <td>HTTP POST template for ERP integration. Returns order, billing, inventory data. Falls back gracefully on error.</td>
+              <td><code class="inline">getRecordData(externalId)</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:.75rem;margin-bottom:0;font-size:.8rem">All Apex classes use <code class="inline">with sharing</code> to respect record-level security.</p>
+    </div>
+  </section>
+
+  <!-- ═══ RESPONSE TYPES ═══ -->
+  <section id="response-types">
+    <h2>LLM Response Types — 8 Schemas</h2>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>responseType</th><th>Component</th><th>When the LLM uses it</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="pill p-blue">kpi_cards</span></td>
+              <td><code class="inline">kpiCardGrid</code></td>
+              <td>Metrics, numbers, performance summaries — best expressed as KPIs with trends</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-blue">chart</span></td>
+              <td><code class="inline">chartWidget</code></td>
+              <td>Trends over time, distributions, bar/line/donut comparisons (uses Chart.js)</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-blue">comparison</span></td>
+              <td><code class="inline">comparisonTable</code></td>
+              <td>Salesforce data vs external ERP/BI data side-by-side with diff highlighting</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-blue">timeline</span></td>
+              <td><code class="inline">timelineView</code></td>
+              <td>Activity history, project phases, event sequences with status badges</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-orange">alert</span></td>
+              <td><code class="inline">alertBanner</code></td>
+              <td>Risks, anomalies, urgent issues, compliance flags, success/error feedback. Also used for duplicate warnings and system errors.</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-gray">summary</span></td>
+              <td>inline sections + badges</td>
+              <td>General narrative answers, explanations — fallback when no other type fits</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-green">record_summary</span></td>
+              <td><code class="inline">recordSummary</code></td>
+              <td>Full record overview with KPI bar and sections. Triggered by "Summarize this record", "overview", "review"</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-red">record_action</span></td>
+              <td><code class="inline">recordActionCard</code></td>
+              <td>Create or Update a Salesforce record — always rendered as a confirmation card; DML only executes after user clicks Confirm</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ DATA MODEL ═══ -->
+  <section id="data-model">
+    <h2>Custom Data Model</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>ChatSession__c</h3>
+        <table>
+          <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code class="inline">RecordId__c</code></td><td>Text</td><td>Salesforce record the session is on</td></tr>
+            <tr><td><code class="inline">ObjectApiName__c</code></td><td>Text</td><td>e.g. Account, Opportunity</td></tr>
+            <tr><td><code class="inline">LastActivityDate__c</code></td><td>DateTime</td><td>Updated on every message</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>ChatMessage__c</h3>
+        <table>
+          <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code class="inline">Session__c</code></td><td>Lookup</td><td>→ ChatSession__c</td></tr>
+            <tr><td><code class="inline">Role__c</code></td><td>Text</td><td>user or assistant</td></tr>
+            <tr><td><code class="inline">Content__c</code></td><td>LongText</td><td>Message text / JSON (≤ 131,072 chars)</td></tr>
+            <tr><td><code class="inline">ResponseType__c</code></td><td>Text</td><td>kpi_cards, chart, record_summary, etc.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-top:0">
+      <h3>AI_Config__mdt — Protected Custom Metadata</h3>
+      <table>
+        <thead><tr><th>Field</th><th>Default record value</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code class="inline">ApiKey__c</code></td>
+            <td>OpenAI API key</td>
+            <td>Protected — set via Setup UI only. Source file excluded via <code class="inline">.forceignore</code> so CLI deploy never overwrites the live key.</td>
+          </tr>
+          <tr>
+            <td><code class="inline">ModelName__c</code></td>
+            <td>gpt-5.5</td>
+            <td>Configurable without code deploy</td>
+          </tr>
+          <tr>
+            <td><code class="inline">MaxTokens__c</code></td>
+            <td><strong>4096</strong> (minimum)</td>
+            <td>Values ≤ 2000 cause <code class="inline">finish_reason:length</code> with empty response for large record contexts. Default fallback in <code class="inline">LLMService</code> is 4096.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ EXTERNAL SERVICES ═══ -->
+  <section id="external">
+    <h2>External Services &amp; Named Credentials</h2>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Named Credential</th><th>Endpoint</th><th>Used by</th><th>Auth</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code class="inline">OpenAI_GPT</code></td>
+              <td><code class="inline">https://api.openai.com</code></td>
+              <td>LLMService → <code class="inline">/v1/chat/completions</code></td>
+              <td>Bearer token (API key from AI_Config__mdt)</td>
+            </tr>
+            <tr>
+              <td><code class="inline">External_ERP</code></td>
+              <td>Your ERP endpoint</td>
+              <td>ExternalERPService → <code class="inline">/record-data</code></td>
+              <td>Configurable</td>
+            </tr>
+            <tr>
+              <td><code class="inline">External_BI</code></td>
+              <td>Python API (ngrok / API GW)</td>
+              <td>ExternalBIService → <code class="inline">/metrics?entityId=</code></td>
+              <td>No auth (add API key for prod)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="alert-box">
+      <span class="alert-icon">⚠️</span>
+      <div class="alert-body">
+        <strong>Network requirement</strong>
+        The External_BI Python server must be accessible from Salesforce's cloud. For local dev use <strong>ngrok</strong>. For production, deploy <code class="inline">lambda_handler.py</code> as an AWS Lambda inside the same VPC as the Redshift cluster, exposed via API Gateway. Remote Site Settings in Salesforce Setup must allowlist all external endpoints.
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONTEXT COVERAGE ═══ -->
+  <section>
+    <h2>Salesforce Context Coverage (per Object)</h2>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Page Object</th><th>Related Data Queried</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="pill p-blue">Account</span></td>
+              <td>All account fields + Contacts (10), Opportunities (10), Cases (10), Tasks (10), Orders (5), Contracts (5), Quotes (5)</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-teal">Contact</span></td>
+              <td>All contact fields + Opportunities via ContactRole (10), Cases (10), Tasks (10), parent Account details</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-green">Opportunity</span></td>
+              <td>All opportunity fields + Contacts via OpportunityContactRole (10), Tasks (10), Quotes (5), parent Account, related Orders</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-orange">Case</span></td>
+              <td>All case fields + Tasks (10)</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-gray">Lead</span></td>
+              <td>All lead fields + Tasks (10)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:.75rem;margin-bottom:0;font-size:.8rem;color:#666">Each related query is individually try-caught — missing or disabled objects (e.g. Quotes not enabled) silently skip without failing the entire context build.</p>
+    </div>
+  </section>
+
+  <!-- ═══ CONSTRAINTS ═══ -->
+  <section id="constraints">
+    <h2>Key Constraints &amp; Design Decisions</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3>Salesforce Governor Limits</h3>
+        <div class="constraint-item">
+          <span class="constraint-icon">🔢</span>
+          <div class="constraint-body">
+            <strong>Max 3 HTTP callouts per transaction</strong>
+            <span>ERP (1) + BI (2) + OpenAI (3) — exactly 3. Cannot add more external calls to <code class="inline">sendMessage()</code>.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">⚡</span>
+          <div class="constraint-body">
+            <strong>Callouts must precede all DML</strong>
+            <span>All 3 callouts complete in <code class="inline">ContextBuilderService</code> + <code class="inline">LLMService</code> before <code class="inline">getOrCreateSession()</code> DML runs.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">📊</span>
+          <div class="constraint-body">
+            <strong>SOQL query limit (100 per transaction)</strong>
+            <span>Related queries per object capped + individually try-caught.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">💾</span>
+          <div class="constraint-body">
+            <strong>LongText field limit</strong>
+            <span>Content truncated at 131,072 chars before insert.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>LWC Constraints</h3>
+        <div class="constraint-item">
+          <span class="constraint-icon">🚫</span>
+          <div class="constraint-body">
+            <strong><code class="inline">@api data</code> is a reserved LWC prop name</strong>
+            <span>All data props named <code class="inline">cardData</code>, <code class="inline">tableData</code>, <code class="inline">chartSeries</code>, etc. instead.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">📈</span>
+          <div class="constraint-body">
+            <strong>Chart.js LWC proxy mutation error</strong>
+            <span>Chart.js adds a <code class="inline">_chartjs</code> property to data arrays; LWC proxies are read-only. Fix: always clone with <code class="inline">Array.from()</code> before passing.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">🔧</span>
+          <div class="constraint-body">
+            <strong>Utility bar FlexiPage cannot be deployed via CLI</strong>
+            <span>Both <code class="inline">AI_Assistant_UtilityBar.flexipage-meta.xml</code> and <code class="inline">AI_Assistant.app-meta.xml</code> are in <code class="inline">.forceignore</code>. Configure via Setup → App Manager UI.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">📁</span>
+          <div class="constraint-body">
+            <strong>File attachment limits</strong>
+            <span>Images/PDFs: ≤ 3 MB (pre-encoding). Text files: ≤ 500 KB. Stays within <code class="inline">@AuraEnabled</code> request-body limits (~4 MB after base64 overhead).</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="two-col" style="margin-top:0">
+      <div class="card">
+        <h3>Security</h3>
+        <div class="constraint-item">
+          <span class="constraint-icon">🔒</span>
+          <div class="constraint-body">
+            <strong>Record-level security</strong>
+            <span>All Apex classes use <code class="inline">with sharing</code> — users only see records they have access to.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">🔑</span>
+          <div class="constraint-body">
+            <strong>API key never in source</strong>
+            <span>Stored in protected <code class="inline">AI_Config__mdt</code>. Source file in <code class="inline">.forceignore</code> so CLI deploy never overwrites the live key.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">🛡️</span>
+          <div class="constraint-body">
+            <strong>LLM output rendered as structured data</strong>
+            <span>Never as raw HTML — eliminates XSS risk from AI-generated content.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Token Limit</h3>
+        <div class="constraint-item">
+          <span class="constraint-icon">⚠️</span>
+          <div class="constraint-body">
+            <strong>MaxTokens must be ≥ 4096</strong>
+            <span>Values ≤ 2000 cause OpenAI to return <code class="inline">finish_reason: "length"</code> with an empty <code class="inline">content</code> field for large record contexts (full system prompt + Salesforce data). LLMService raises a descriptive error on detection.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">🔄</span>
+          <div class="constraint-body">
+            <strong>Conversation history pop-on-error</strong>
+            <span><code class="inline">chatbotShell</code> pops the user message from <code class="inline">conversationHistory</code> in the catch block so failed attempts don't accumulate and inflate context on retry.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">📝</span>
+          <div class="constraint-body">
+            <strong>Attachments are one-shot context only</strong>
+            <span>File data is not persisted to <code class="inline">ChatMessage__c</code>. Each attachment is included in the LLM call for that turn only. Conversation history stores text only.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ DEPLOY ═══ -->
+  <section id="deploy">
+    <h2>Deployment Commands</h2>
+    <div class="card">
+      <h3>Deploy all metadata</h3>
+      <pre><code>sf project deploy start \
+  --source-dir force-app/main/default \
+  --target-org gprlmth5@gmail.com \
+  --wait 15</code></pre>
+      <h3>Deploy a single Apex class</h3>
+      <pre><code>cat > /tmp/pkg.xml &lt;&lt;'EOF'
+&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;Package xmlns="http://soap.sforce.com/2006/04/metadata"&gt;
+  &lt;types&gt;&lt;members&gt;LLMService&lt;/members&gt;&lt;name&gt;ApexClass&lt;/name&gt;&lt;/types&gt;
+  &lt;version&gt;62.0&lt;/version&gt;
+&lt;/Package&gt;
+EOF
+sf project deploy start --manifest /tmp/pkg.xml --target-org gprlmth5@gmail.com --wait 15</code></pre>
+      <h3>Run Apex tests</h3>
+      <pre><code>sf apex run test --class-names ChatbotControllerTest --target-org gprlmth5@gmail.com</code></pre>
+      <h3>Run LWC unit tests</h3>
+      <pre><code>npm test</code></pre>
+    </div>
+    <div class="alert-box" style="margin-top:0">
+      <span class="alert-icon">⚠️</span>
+      <div class="alert-body">
+        <strong>After deploying: update MaxTokens via Setup UI</strong>
+        Setup → Custom Metadata Types → AI Config → Manage Records → Default → Edit → set <code class="inline">MaxTokens__c</code> = <strong>4096</strong> (or higher). Never deploy <code class="inline">AI_Config.Default.md-meta.xml</code> — it contains a placeholder key and is excluded via <code class="inline">.forceignore</code>.
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span>GPTLMTH52</span> · Salesforce AI Chatbot · Architecture Reference · Generated by Claude Code · 2026
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,41 @@
+<template>
+    <div class={cardClass}>
+        <div class="rac-header">
+            <lightning-icon icon-name={operationIcon} size="x-small" class="rac-header-icon"></lightning-icon>
+            <span class="rac-op">{operationLabel}</span>
+            <span class="rac-object">{objectApiName}</span>
+        </div>
+
+        <table class="rac-table">
+            <tbody>
+                <template for:each={fieldRows} for:item="row">
+                    <tr key={row.name}>
+                        <td class="rac-field-name">{row.label}</td>
+                        <td class="rac-field-value">{row.value}</td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+
+        <template if:false={isDone}>
+            <div class="rac-footer">
+                <button class="rac-btn-confirm" onclick={handleConfirm}>
+                    <lightning-icon icon-name="utility:check" size="xx-small" class="rac-btn-icon"></lightning-icon>
+                    Confirm
+                </button>
+                <button class="rac-btn-cancel" onclick={handleCancel}>Cancel</button>
+            </div>
+        </template>
+
+        <template if:true={confirmed}>
+            <div class="rac-status rac-status-confirmed">
+                <lightning-icon icon-name="utility:check" size="xx-small"></lightning-icon>
+                Submitted
+            </div>
+        </template>
+
+        <template if:true={cancelled}>
+            <div class="rac-status rac-status-cancelled">Cancelled</div>
+        </template>
+    </div>
+</template>

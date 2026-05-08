@@ -1,0 +1,115 @@
+.response-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    font-family: var(--lwc-fontFamily, 'Salesforce Sans', Arial, sans-serif);
+}
+
+.response-summary {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #3e3e3c;
+    line-height: 1.55;
+}
+
+.response-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #032d60;
+    line-height: 1.3;
+}
+
+/* Summary sections */
+.summary-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.summary-section {
+    padding: 0.625rem 0.75rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #0176d3;
+}
+
+.section-heading {
+    margin: 0 0 0.375rem 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #032d60;
+}
+
+.section-body {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #3e3e3c;
+    line-height: 1.5;
+}
+
+/* Badges */
+.badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-top: 0.25rem;
+}
+
+.badge {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.2rem 0.625rem;
+    border-radius: 20px;
+    letter-spacing: 0.02em;
+}
+
+.badge-success { background: #f0fff4; color: #2e844a; }
+.badge-warning { background: #fff8f0; color: #663300; }
+.badge-error   { background: #fef0f0; color: #ba0517; }
+.badge-brand   { background: #e8f3fe; color: #032d60; }
+
+/* Action buttons */
+.action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid #f3f3f3;
+    margin-top: 0.25rem;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.4375rem 0.875rem;
+    background: #ffffff;
+    border: 1.5px solid #0176d3;
+    border-radius: 20px;
+    color: #0176d3;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+    font-family: var(--lwc-fontFamily, 'Salesforce Sans', Arial, sans-serif);
+    white-space: nowrap;
+}
+
+.action-btn:hover {
+    background: #0176d3;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.action-btn:active {
+    transform: translateY(0);
+}
+
+.action-btn-icon {
+    --sds-c-icon-color-foreground-default: currentColor;
+}
+
+.action-btn:hover .action-btn-icon {
+    --sds-c-icon-color-foreground-default: #ffffff;
+}
