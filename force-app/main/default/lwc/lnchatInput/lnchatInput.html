@@ -5,13 +5,13 @@
             <div class="suggestions-row">
                 <template for:each={suggestions} for:item="suggestion">
                     <button
-                        key={suggestion.text}
+                        key={suggestion.label}
                         class="suggestion-chip"
                         onclick={handleSuggestion}
                         data-text={suggestion.text}
                         data-prefill={suggestion.prefill}
                         disabled={isLoading}
-                    >{suggestion.text}</button>
+                    >{suggestion.label}</button>
                 </template>
             </div>
         </template>

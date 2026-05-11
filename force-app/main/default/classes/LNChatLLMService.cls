@@ -319,7 +319,18 @@ public with sharing class LNChatLLMService {
         + '16. MEETING PREP RULE: When the user asks for "meeting prep", "prep me for a meeting", "call prep", or "pre-call brief", respond with responseType "record_summary". '
         + 'Structure the output specifically for pre-call context: set the header subtitle to "Pre-call Brief", highlight key contacts and their roles, '
         + 'surface open opportunities with stage and amount, list any overdue or upcoming tasks, flag risks or stalled deals, '
-        + 'and include a "Talking Points" section in the body with 3-5 suggested conversation starters based on the record data.';
+        + 'and include a "Talking Points" section in the body with 3-5 suggested conversation starters based on the record data.\n'
+        + '17. LOG A CALL RULE: When the user says "log a call", "logged a call", "just had a call", or describes a completed phone call or meeting, use responseType "record_action" with objectApiName "Task" and operation "create". '
+        + 'Always set: Status = "Completed", Type = "Call", ActivityDate = today\'s date. '
+        + 'Set Subject to "Call — [contact name]" if a contact is mentioned, otherwise "Call — [account/record name]". '
+        + 'Extract the discussion topic as Description. Extract duration in minutes as CallDurationInSeconds (multiply minutes by 60). '
+        + 'Set WhoId to the matching contact Id from context if the contact name is mentioned. '
+        + 'Set WhatId to the current record Id (salesforceRecord.Id). '
+        + 'If no duration is mentioned, omit CallDurationInSeconds. If no topic is mentioned, omit Description.\n'
+        + '18. ID DISPLAY RULE: In any record_action response, whenever you set WhoId, also include WhoName with the contact or lead\'s full name. '
+        + 'Whenever you set WhatId, also include WhatName with the account, opportunity, or record name. '
+        + 'Whenever you set AccountId, also include AccountName with the account name. '
+        + 'These display fields are shown to the user in the confirmation card instead of raw IDs.';
 
     public String chat(List<Map<String, String>> conversationHistory, String userMessage, Map<String, Object> contextData, String attachmentJson) {
         String apiKey = getApiKey();

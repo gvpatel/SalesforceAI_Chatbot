@@ -33,6 +33,10 @@ const FIELD_LABELS = {
     ActivityDate: 'Due Date',
     WhoId: 'Contact/Lead ID',
     WhatId: 'Related To ID',
+    WhoName: 'Contact',
+    WhatName: 'Related To',
+    AccountName: 'Account',
+    CallDurationInSeconds: 'Duration (seconds)',
     Description: 'Description'
 };
 
@@ -63,8 +67,13 @@ export default class LnchatRecordActionCard extends LightningElement {
 
     get fieldRows() {
         const src = this.fieldsData || {};
+        // Hide raw ID fields when a human-readable name is provided alongside them
+        const skip = new Set();
+        if (src.WhoName) skip.add('WhoId');
+        if (src.WhatName) skip.add('WhatId');
+        if (src.AccountName) skip.add('AccountId');
         return Object.entries(src)
-            .filter(([, val]) => val !== null && val !== undefined && String(val).trim() !== '')
+            .filter(([name, val]) => !skip.has(name) && val !== null && val !== undefined && String(val).trim() !== '')
             .map(([name, value]) => ({
                 name,
                 label: FIELD_LABELS[name] || name,

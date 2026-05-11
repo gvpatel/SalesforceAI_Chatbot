@@ -474,10 +474,11 @@
     <div class="badges">
       <span class="badge">Lightning Web Components</span>
       <span class="badge">Apex / @AuraEnabled</span>
-      <span class="badge">OpenAI GPT-5.5</span>
+      <span class="badge">OpenAI GPT-4o</span>
       <span class="badge">AWS Redshift BI</span>
       <span class="badge">File Attachments</span>
-      <span class="badge">8 Response Types</span>
+      <span class="badge">10 Response Types</span>
+      <span class="badge">Email Digest</span>
       <span class="badge">Record Create / Update</span>
     </div>
   </div>
@@ -508,24 +509,24 @@
     <h2>Overview</h2>
     <div class="card">
       <p>The chatbot is embedded as a <strong>Utility Bar component</strong> (or placed on any record page via <code class="inline">chatbotDrawer</code>). When a user opens any record page (Account, Contact, Opportunity, Case, Lead), the chatbot auto-detects the page context and provides AI-powered answers and actions for that specific record.</p>
-      <p>Every message goes through a <strong>3-callout pipeline</strong>: Salesforce context is built (SOQL), external data is fetched (ERP + BI), then the LLM is called (OpenAI GPT-5.5). All HTTP callouts happen <em>before</em> any DML to comply with Salesforce's callout-before-DML governor restriction. Users can optionally attach image, PDF, or text files for analysis in the same turn.</p>
-      <p style="margin-bottom:0">The LLM responds with one of <strong>8 structured JSON response types</strong> — rendered by dedicated LWC child components for rich visual output: KPI cards, charts, comparison tables, timelines, alerts, record summaries, and record action confirmation cards.</p>
+      <p>Every message goes through a <strong>3-callout pipeline</strong>: Salesforce context is built (SOQL), external data is fetched (ERP + BI), then the LLM is called (OpenAI GPT-4o). All HTTP callouts happen <em>before</em> any DML to comply with Salesforce's callout-before-DML governor restriction. Users can optionally attach image, PDF, or text files for analysis in the same turn.</p>
+      <p style="margin-bottom:0">The LLM responds with one of <strong>10 structured JSON response types</strong> — rendered by dedicated LWC child components for rich visual output: KPI cards, charts, comparison tables, timelines, alerts, record summaries, record lists, and record action confirmation cards. A scheduled Apex batch also delivers a weekly email digest per rep with AI-generated account health insights.</p>
     </div>
     <div class="feature-grid">
       <div class="feature-card fc-blue">
         <div class="fc-icon">🖥️</div>
-        <div class="fc-title">Frontend — 8 LWC Components</div>
+        <div class="fc-title">Frontend — 10 LWC Components</div>
         <div class="fc-desc"><code class="inline">chatbotShell</code> owns all state. <code class="inline">responseRenderer</code> routes to the correct visual component by <code class="inline">responseType</code>. <code class="inline">chatbotDrawer</code> provides a floating FAB for non-utility-bar pages.</div>
       </div>
       <div class="feature-card fc-purple">
         <div class="fc-icon">⚙️</div>
-        <div class="fc-title">Backend — 7 Apex Classes</div>
-        <div class="fc-desc"><code class="inline">ChatbotController</code> is the <code class="inline">@AuraEnabled</code> entry point. All 3 callouts (ERP, BI, OpenAI) complete before any DML. File attachments serialized to JSON and passed end-to-end.</div>
+        <div class="fc-title">Backend — 9 Apex Classes</div>
+        <div class="fc-desc"><code class="inline">ChatbotController</code> is the <code class="inline">@AuraEnabled</code> entry point. All 3 callouts (ERP, BI, OpenAI) complete before any DML. File attachments serialized to JSON and passed end-to-end. <code class="inline">DigestBatch</code> + <code class="inline">DigestScheduler</code> deliver weekly account-health emails.</div>
       </div>
       <div class="feature-card fc-teal">
         <div class="fc-icon">🤖</div>
         <div class="fc-title">AI + External Data</div>
-        <div class="fc-desc">OpenAI GPT-5.5 via Named Credential. BI data from AWS Redshift via Python FastAPI. ERP data via HTTP template. Multimodal messages for image/PDF/text attachments.</div>
+        <div class="fc-desc">OpenAI GPT-4o via Named Credential. BI data from AWS Redshift via Python FastAPI. ERP data via HTTP template. Multimodal messages for image/PDF/text attachments.</div>
       </div>
     </div>
   </section>
@@ -662,7 +663,7 @@
 
         <rect x="255" y="286" width="100" height="40" rx="7" fill="#a855f7"/>
         <text x="305" y="304" text-anchor="middle" font-size="9"   font-weight="700" fill="#fff">ResponseDTO</text>
-        <text x="305" y="318" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">parse 8 schemas</text>
+        <text x="305" y="318" text-anchor="middle" font-size="8"   fill="rgba(255,255,255,.85)">parse 10 schemas</text>
 
         <rect x="365" y="286" width="105" height="40" rx="7" fill="#a855f7"/>
         <text x="417" y="302" text-anchor="middle" font-size="9"   font-weight="700" fill="#fff">enrichSummary</text>
@@ -682,7 +683,7 @@
 
         <!-- ═ EXTERNAL DATA ═ -->
         <rect x="515" y="68"  width="185" height="56" rx="7" fill="#10a37f"/>
-        <text x="607" y="91"  text-anchor="middle" font-size="11"  font-weight="700" fill="#fff">OpenAI GPT-5.5</text>
+        <text x="607" y="91"  text-anchor="middle" font-size="11"  font-weight="700" fill="#fff">OpenAI GPT-4o</text>
         <text x="607" y="107" text-anchor="middle" font-size="9"   fill="rgba(255,255,255,.85)">Named Credential: OpenAI_GPT</text>
         <text x="607" y="120" text-anchor="middle" font-size="9"   fill="rgba(255,255,255,.85)">/v1/chat/completions · multimodal</text>
 
@@ -799,7 +800,7 @@
           <div class="step-num" style="background:#0176d3;color:#fff">1</div>
           <div class="step-body">
             <strong>User types a message in chatbotInput (optionally attaches a file)</strong>
-            <span>The textarea fires a <code class="inline">messagesend</code> custom event with <code class="inline">{ message, attachment }</code>. Attachment is a JSON object produced by the browser <code class="inline">FileReader</code> API. Suggestion chips fire the same event with pre-defined prompts ("Summarize this record", "What are the risks?").</span>
+            <span>The textarea fires a <code class="inline">messagesend</code> custom event with <code class="inline">{ message, attachment }</code>. Attachment is a JSON object produced by the browser <code class="inline">FileReader</code> API. Suggestion chips fire the same event with pre-defined prompts: <em>Summarize this record</em>, <em>Meeting prep</em>, <em>Log a call</em> (prefills template), <em>Draft follow-up email</em> (prefills template), <em>What are the next steps?</em>, <em>Open Opportunities</em>, <em>What are the risks?</em></span>
           </div>
         </div>
         <div class="step">
@@ -834,7 +835,7 @@
           <div class="step-num" style="background:#10a37f;color:#fff">6</div>
           <div class="step-body">
             <strong>LLMService.chat() — HTTP callout 3</strong>
-            <span>POST to <code class="inline">callout:OpenAI_GPT/v1/chat/completions</code>. Builds a multimodal messages array: system prompt (8 response schemas + 13 rules), context JSON, conversation history, user text message, and optional image/PDF/text attachment block. Model: GPT-5.5. <code class="inline">max_completion_tokens</code> from <code class="inline">AI_Config__mdt</code> (must be ≥ 4096). 429 rate limit triggers one retry.</span>
+            <span>POST to <code class="inline">callout:OpenAI_GPT/v1/chat/completions</code>. Builds a multimodal messages array: system prompt (10 response schemas + 18 rules), context JSON, conversation history, user text message, and optional image/PDF/text attachment block. Model: GPT-4o. <code class="inline">max_completion_tokens</code> from <code class="inline">AI_Config__mdt</code> (must be ≥ 4096). 429 rate limit triggers one retry.</span>
           </div>
         </div>
         <div class="step">
@@ -1013,7 +1014,7 @@
             </tr>
             <tr>
               <td><code class="inline">chatbotInput</code></td>
-              <td>Textarea with suggestion chips, submit button, and <code class="inline">+</code> attach button. Hidden file input, attachment preview pill with remove button. Validates file type and size client-side using <code class="inline">FileReader</code>.</td>
+              <td>Textarea with suggestion chips (<em>Summarize · Meeting prep · Log a call · Draft follow-up email · Next steps · Open Opportunities · Risks</em>), submit button, and <code class="inline">+</code> attach button. Prefill chips populate the textarea with a template; auto-send chips fire immediately. Hidden file input, attachment preview pill with remove button. Validates file type and size client-side using <code class="inline">FileReader</code>.</td>
               <td>fires <code class="inline">messagesend { message, attachment }</code>, <code class="inline">attacherror { message }</code></td>
             </tr>
             <tr>
@@ -1053,7 +1054,7 @@
             </tr>
             <tr>
               <td><code class="inline">recordActionCard</code></td>
-              <td>Create/Update confirmation card showing object, operation, and field table. Confirm/Cancel buttons.</td>
+              <td>Create/Update confirmation card showing object, operation, and field table. Confirm/Cancel buttons. Raw ID fields (<code class="inline">WhoId</code>, <code class="inline">WhatId</code>, <code class="inline">AccountId</code>) are hidden when the LLM supplies the corresponding display-name fields (<code class="inline">WhoName</code>, <code class="inline">WhatName</code>, <code class="inline">AccountName</code>).</td>
               <td>fires <code class="inline">recordactionconfirm</code>, <code class="inline">recordactioncancel</code></td>
             </tr>
             <tr>
@@ -1080,7 +1081,7 @@
             <tr>
               <td><code class="inline">ChatbotController</code></td>
               <td><code class="inline">@AuraEnabled</code> entry point. Enforces callout-before-DML order. Orchestrates context → LLM → persist pipeline.</td>
-              <td><code class="inline">sendMessage(msg, recId, objApi, histJson, attachJson)</code> · <code class="inline">executeRecordAction()</code> · <code class="inline">getConversationHistory()</code> · <code class="inline">clearConversationHistory()</code></td>
+              <td><code class="inline">sendMessage(msg, recId, objApi, histJson, attachJson)</code> · <code class="inline">executeRecordAction()</code> · <code class="inline">getConversationHistory()</code> · <code class="inline">clearConversationHistory()</code> · <code class="inline">sendEmail()</code></td>
             </tr>
             <tr>
               <td><code class="inline">ContextBuilderService</code></td>
@@ -1089,12 +1090,12 @@
             </tr>
             <tr>
               <td><code class="inline">LLMService</code></td>
-              <td>Builds <code class="inline">List&lt;Map&lt;String,Object&gt;&gt;</code> messages with system prompt (8 schemas + 13 rules), context JSON, history, user text, and optional image/PDF/text attachment block. Calls OpenAI. Handles 429 retry and <code class="inline">finish_reason:length</code> error.</td>
+              <td>Builds <code class="inline">List&lt;Map&lt;String,Object&gt;&gt;</code> messages with system prompt (10 schemas + 18 rules), context JSON, history, user text, and optional image/PDF/text attachment block. Calls OpenAI. Handles 429 retry and <code class="inline">finish_reason:length</code> error.</td>
               <td><code class="inline">chat(history, message, context, attachmentJson)</code> · <code class="inline">executeRequest()</code> · <code class="inline">parseSuccessResponse()</code></td>
             </tr>
             <tr>
               <td><code class="inline">ChatbotResponseDTO</code></td>
-              <td>Deserializes LLM JSON response into typed objects. Handles all 8 response schemas.</td>
+              <td>Deserializes LLM JSON response into typed objects. Handles all 10 response schemas.</td>
               <td><code class="inline">fromJson()</code></td>
             </tr>
             <tr>
@@ -1112,6 +1113,16 @@
               <td>HTTP POST template for ERP integration. Returns order, billing, inventory data. Falls back gracefully on error.</td>
               <td><code class="inline">getRecordData(externalId)</code></td>
             </tr>
+            <tr>
+              <td><code class="inline">DigestBatch</code></td>
+              <td><code class="inline">Database.Batchable + Database.AllowsCallouts</code>. Runs weekly. Queries accounts per rep, scores health (🔴 Red / 🟡 Yellow / 🟢 Green), skips all-green reps, makes 1 LLM callout per rep, sends an HTML email with AI insights + account table. Batch size = 1 to stay within 10-email-per-execute and callout limits.</td>
+              <td><code class="inline">start()</code> · <code class="inline">execute()</code> · <code class="inline">finish()</code> · <code class="inline">callLLM()</code> · <code class="inline">buildHtml()</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">DigestScheduler</code></td>
+              <td>Schedulable wrapper. Calls <code class="inline">Database.executeBatch(new DigestBatch(), 1)</code> on the configured cron schedule.</td>
+              <td><code class="inline">execute(SchedulableContext)</code></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -1121,7 +1132,7 @@
 
   <!-- ═══ RESPONSE TYPES ═══ -->
   <section id="response-types">
-    <h2>LLM Response Types — 8 Schemas</h2>
+    <h2>LLM Response Types — 10 Schemas</h2>
     <div class="card">
       <div class="table-wrap">
         <table>
@@ -1169,6 +1180,16 @@
               <td><code class="inline">recordActionCard</code></td>
               <td>Create or Update a Salesforce record — always rendered as a confirmation card; DML only executes after user clicks Confirm</td>
             </tr>
+            <tr>
+              <td><span class="pill p-orange">record_list</span></td>
+              <td><code class="inline">responseRenderer</code> (inline list)</td>
+              <td>A filtered list of records (e.g. "Show my open opportunities", "Open Cases") — renders as a navigable list with clickable record links</td>
+            </tr>
+            <tr>
+              <td><span class="pill p-gray">meeting_prep</span></td>
+              <td><code class="inline">recordSummary</code></td>
+              <td>Pre-call brief: talking points, key contacts, open risks — triggered by "Meeting prep" or "call prep". Routes to <code class="inline">record_summary</code> responseType with pre-call framing.</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -1215,7 +1236,7 @@
           </tr>
           <tr>
             <td><code class="inline">ModelName__c</code></td>
-            <td>gpt-5.5</td>
+            <td>gpt-4o</td>
             <td>Configurable without code deploy</td>
           </tr>
           <tr>
@@ -1445,6 +1466,9 @@ sf project deploy start --manifest /tmp/pkg.xml --target-org gprlmth5@gmail.com 
       <pre><code>sf apex run test --class-names ChatbotControllerTest --target-org gprlmth5@gmail.com</code></pre>
       <h3>Run LWC unit tests</h3>
       <pre><code>npm test</code></pre>
+      <h3>Schedule weekly email digest (run once in Anonymous Apex)</h3>
+      <pre><code>// Every Monday at 7 AM org time
+System.schedule('LNChatDigest', '0 0 7 ? * MON', new LNChatDigestScheduler());</code></pre>
     </div>
     <div class="alert-box" style="margin-top:0">
       <span class="alert-icon">⚠️</span>

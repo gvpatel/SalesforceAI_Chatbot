@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Assistant — Use Cases</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f4f6f9;
+            color: #3e3e3c;
+            padding: 40px 24px;
+        }
+
+        .page-wrapper {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        /* ── Header ── */
+        .header {
+            background: linear-gradient(135deg, #0176d3 0%, #014486 100%);
+            border-radius: 16px;
+            padding: 40px 48px;
+            color: #fff;
+            margin-bottom: 36px;
+        }
+
+        .header-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 15px;
+            opacity: 0.85;
+            max-width: 600px;
+            line-height: 1.6;
+        }
+
+        /* ── Section titles ── */
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #706e6b;
+            margin-bottom: 14px;
+            margin-top: 36px;
+            padding-left: 4px;
+        }
+
+        /* ── Card grid ── */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px 22px;
+            border: 1.5px solid #e8e8e8;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            border-color: #c2d9f0;
+        }
+
+        .card-icon {
+            font-size: 26px;
+            margin-bottom: 10px;
+            line-height: 1;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #0176d3;
+        }
+
+        .card-desc {
+            font-size: 13px;
+            color: #706e6b;
+            line-height: 1.55;
+        }
+
+        /* ── Example chips ── */
+        .chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .chip {
+            background: #f0f6ff;
+            border: 1px solid #c2d9f0;
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 11.5px;
+            color: #0176d3;
+            font-weight: 500;
+        }
+
+        /* ── Full-width feature row ── */
+        .feature-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .feature-row { grid-template-columns: 1fr; }
+            .header { padding: 28px 24px; }
+            .header h1 { font-size: 24px; }
+        }
+
+        /* ── Table card ── */
+        .table-card {
+            background: #fff;
+            border-radius: 12px;
+            border: 1.5px solid #e8e8e8;
+            overflow: hidden;
+            margin-top: 0;
+        }
+
+        .table-card table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .table-card th {
+            background: #f3f3f3;
+            padding: 10px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #3e3e3c;
+            border-bottom: 1.5px solid #e8e8e8;
+        }
+
+        .table-card td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #3e3e3c;
+            vertical-align: top;
+        }
+
+        .table-card tr:last-child td { border-bottom: none; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 9px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-green  { background: #e3f5e1; color: #2e844a; }
+        .badge-blue   { background: #e0f0ff; color: #0176d3; }
+        .badge-orange { background: #fef0e0; color: #dd7a01; }
+
+        /* ── Digest highlight ── */
+        .highlight-card {
+            background: linear-gradient(135deg, #f0f6ff 0%, #e8f3fe 100%);
+            border: 1.5px solid #c2d9f0;
+            border-radius: 12px;
+            padding: 24px 28px;
+        }
+
+        .highlight-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0176d3;
+            margin-bottom: 8px;
+        }
+
+        .highlight-card p {
+            font-size: 13px;
+            color: #3e3e3c;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .digest-sample {
+            background: #fff;
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-size: 12.5px;
+            line-height: 1.7;
+            color: #3e3e3c;
+            border: 1px solid #d8e8f5;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: 48px;
+            text-align: center;
+            font-size: 12px;
+            color: #b0adab;
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-badge">Salesforce AI Assistant</div>
+        <h1>What Can the AI Chatbot Do?</h1>
+        <p>A complete overview of capabilities for sales reps, managers, and business users. The assistant lives inside Salesforce — no separate tool needed.</p>
+    </div>
+
+    <!-- Record Intelligence -->
+    <div class="section-label">Record Intelligence — Ask Questions, Get Instant Answers</div>
+    <div class="card-grid">
+
+        <div class="card">
+            <div class="card-icon">📋</div>
+            <div class="card-title">Summarize Any Record</div>
+            <div class="card-desc">Get a full overview of an Account, Contact, Opportunity, Case, or Lead — including key details, open items, and related records — in seconds.</div>
+            <div class="chip-row">
+                <span class="chip">Summarize this record</span>
+                <span class="chip">Give me an overview</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">📞</div>
+            <div class="card-title">Meeting Prep Brief</div>
+            <div class="card-desc">Before a call, get a pre-call brief with key contacts, open deals, recent activity, risks, and suggested talking points — all in one click.</div>
+            <div class="chip-row">
+                <span class="chip">Meeting prep</span>
+                <span class="chip">Prep me for this call</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">📈</div>
+            <div class="card-title">Open Opportunities</div>
+            <div class="card-desc">See all open deals linked to the current account or contact — with stage, amount, close date, and health status.</div>
+            <div class="chip-row">
+                <span class="chip">Open Opportunities</span>
+                <span class="chip">What deals are open?</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">⚠️</div>
+            <div class="card-title">Risks &amp; Anomalies</div>
+            <div class="card-desc">Surface hidden risks: stalled deals, overdue tasks, inactive accounts, unresolved cases, or anything that needs urgent attention.</div>
+            <div class="chip-row">
+                <span class="chip">What are the risks?</span>
+                <span class="chip">Any red flags?</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">✅</div>
+            <div class="card-title">Tasks &amp; Next Steps</div>
+            <div class="card-desc">See all open and overdue tasks linked to a record, and get AI-suggested next steps based on the current situation.</div>
+            <div class="chip-row">
+                <span class="chip">Show overdue tasks</span>
+                <span class="chip">What are the next steps?</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">👥</div>
+            <div class="card-title">Key Contacts</div>
+            <div class="card-desc">See all contacts associated with an account or opportunity, including their roles, titles, and contact details.</div>
+            <div class="chip-row">
+                <span class="chip">Key contacts</span>
+                <span class="chip">Who are the stakeholders?</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">📊</div>
+            <div class="card-title">KPIs &amp; Metrics</div>
+            <div class="card-desc">Ask for numbers, performance metrics, or pipeline values and get a visual KPI card view with trend indicators.</div>
+            <div class="chip-row">
+                <span class="chip">Show pipeline value</span>
+                <span class="chip">What's the deal size?</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-icon">📅</div>
+            <div class="card-title">Activity Timeline</div>
+            <div class="card-desc">View a chronological timeline of all activities, emails, calls, and key events for a record — great for understanding history before a call.</div>
+            <div class="chip-row">
+                <span class="chip">Show activity history</span>
+                <span class="chip">What happened recently?</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Record Actions -->
+    <div class="section-label">Record Actions — Create &amp; Update Without Leaving the Chat</div>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Action</th>
+                    <th>Supported Objects</th>
+                    <th>Example Prompt</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Create a record</strong></td>
+                    <td>Account, Contact, Task, Case, Opportunity, Quote</td>
+                    <td><em>"Create a follow-up task for Acme Corp due Friday"</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Update a record</strong></td>
+                    <td>Account, Contact, Task, Case, Opportunity, Quote</td>
+                    <td><em>"Update the stage of this opportunity to Closed Won"</em></td>
+                </tr>
+                <tr>
+                    <td><strong>Log a call</strong></td>
+                    <td>Task (Type = Call, Status = Completed)</td>
+                    <td><em>"Log a call with John Smith, discussed renewal pricing, 30 minutes"</em> — contact and account linked automatically</td>
+                </tr>
+                <tr>
+                    <td><strong>Duplicate protection</strong></td>
+                    <td>All objects</td>
+                    <td>AI warns if a matching record already exists before saving</td>
+                </tr>
+                <tr>
+                    <td><strong>Auto-linking</strong></td>
+                    <td>All objects</td>
+                    <td>New records are automatically linked to the current page's account or opportunity</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- File Attachments -->
+    <div class="section-label">File Attachments — Analyse Documents in the Chat</div>
+    <div class="card-grid">
+        <div class="card">
+            <div class="card-icon">🖼️</div>
+            <div class="card-title">Images</div>
+            <div class="card-desc">Attach JPG, PNG, GIF, or WebP files up to 3 MB. The AI can read, describe, and extract information from images.</div>
+            <div class="chip-row"><span class="chip">Up to 3 MB</span></div>
+        </div>
+        <div class="card">
+            <div class="card-icon">📄</div>
+            <div class="card-title">PDF Documents</div>
+            <div class="card-desc">Upload contracts, proposals, or reports as PDFs. The AI reads the full content and can answer questions about it.</div>
+            <div class="chip-row"><span class="chip">Up to 3 MB</span></div>
+        </div>
+        <div class="card">
+            <div class="card-icon">📊</div>
+            <div class="card-title">CSV / TXT / JSON</div>
+            <div class="card-desc">Upload spreadsheet exports or data files. The AI reads the data and can summarise, find patterns, or answer questions about it.</div>
+            <div class="chip-row"><span class="chip">Up to 500 KB</span></div>
+        </div>
+    </div>
+
+    <!-- Email & Navigation -->
+    <div class="section-label">Email &amp; Navigation</div>
+    <div class="card-grid">
+        <div class="card">
+            <div class="card-icon">✉️</div>
+            <div class="card-title">Send AI Responses by Email</div>
+            <div class="card-desc">Any AI response can be emailed directly from the chat. Enter an email address and hit send — no copy-pasting needed. Useful for sharing summaries or briefings with colleagues.</div>
+        </div>
+        <div class="card">
+            <div class="card-icon">📝</div>
+            <div class="card-title">Draft Follow-up Email</div>
+            <div class="card-desc">Ask the AI to draft a professional follow-up email based on your call — it uses the contact's name, deal context, and next steps from the record. Review and send in one click.</div>
+            <div class="chip-row">
+                <span class="chip">Draft follow-up email</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-icon">🔗</div>
+            <div class="card-title">Click-Through to Records</div>
+            <div class="card-desc">Any record name mentioned in an AI response is a clickable link. Click it to navigate directly to that Salesforce record — no searching required.</div>
+        </div>
+    </div>
+
+    <!-- Email Digest -->
+    <div class="section-label">Weekly Account Digest — Automated Email for Managers &amp; Reps</div>
+    <div class="highlight-card">
+        <h3>Smart Weekly Digest — Delivered to Every Rep's Inbox</h3>
+        <p>Every Monday morning, each sales rep automatically receives a personalised email digest showing the health of their accounts — scored red, yellow, or green — plus AI-generated top 3 actions for the week. No login required, no manual steps.</p>
+        <div class="digest-sample">
+Hi Sarah,
+
+PIPELINE THIS WEEK
+You have $420K in open pipeline. 2 deals are at risk of stalling.
+
+TOP 3 ACTIONS THIS WEEK
+1. Call Acme Corp — no activity in 47 days, $85K deal stalling in Proposal
+2. Resolve 3 overdue tasks on TechCorp before Friday
+3. Follow up on Globex quote — no response in 12 days
+
+YOUR ACCOUNTS
+🔴 Acme Corp         $85K Proposal    47d no activity   2 overdue tasks
+🟡 TechCorp          $32K Negotiate   18d no activity   3 overdue tasks
+🟢 Initech           $120K Active      4d no activity   0 overdue tasks
+        </div>
+    </div>
+
+    <!-- Supported Pages -->
+    <div class="section-label">Where the Assistant Works</div>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Record Page</th>
+                    <th>Related Data Available to AI</th>
+                    <th>Record Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Account</strong></td>
+                    <td>Contacts, open Opportunities, Cases, Tasks, Orders, Contracts, Quotes</td>
+                    <td><span class="badge badge-green">Full</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Opportunity</strong></td>
+                    <td>Contacts, Tasks, Quotes, parent Account, related Orders</td>
+                    <td><span class="badge badge-green">Full</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Contact</strong></td>
+                    <td>Open Opportunities, Cases, Tasks, parent Account</td>
+                    <td><span class="badge badge-green">Full</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Case</strong></td>
+                    <td>Open Tasks</td>
+                    <td><span class="badge badge-green">Full</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Lead</strong></td>
+                    <td>Open Tasks</td>
+                    <td><span class="badge badge-green">Full</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Quick Reference -->
+    <div class="section-label">Quick Reference — Example Prompts</div>
+    <div class="card-grid">
+        <div class="card">
+            <div class="card-title" style="color:#2e844a;">✅ Things You Can Ask</div>
+            <div class="chip-row" style="margin-top:8px;">
+                <span class="chip">"Summarize this account"</span>
+                <span class="chip">"Meeting prep"</span>
+                <span class="chip">"Log a call with John, discussed renewal, 30 min"</span>
+                <span class="chip">"Draft a follow-up email to John"</span>
+                <span class="chip">"What deals are closing this month?"</span>
+                <span class="chip">"Create a task for tomorrow"</span>
+                <span class="chip">"Update the opportunity stage"</span>
+                <span class="chip">"Show overdue tasks"</span>
+                <span class="chip">"What are the risks?"</span>
+                <span class="chip">"Who are the key contacts?"</span>
+                <span class="chip">"Show open cases"</span>
+                <span class="chip">"What happened last month?"</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title" style="color:#706e6b;">ℹ️ Good to Know</div>
+            <div class="card-desc" style="line-height:1.9;">
+                • The AI <strong>never saves anything without your confirmation</strong> — create/update actions show a preview card first<br>
+                • Conversation history is saved per record — pick up where you left off<br>
+                • The AI only sees data you have access to in Salesforce<br>
+                • Press <strong>Enter</strong> to send · <strong>Shift+Enter</strong> for a new line<br>
+                • Use the <strong>+</strong> button to attach a file
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        AI Assistant · Salesforce · Internal Use Only
+    </div>
+
+</div>
+</body>
+</html>

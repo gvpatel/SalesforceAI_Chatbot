@@ -1,12 +1,13 @@
 import { LightningElement, api, track } from 'lwc';
 
 const SUGGESTIONS = [
-    { text: 'Summarize this record',      prefill: false },
-    { text: 'What are the next steps?',   prefill: false },
-    { text: 'Meeting prep',               prefill: false },
-    { text: 'Open Opportunities',         prefill: false },
-    { text: 'Show overdue tasks',         prefill: false },
-    { text: 'What are the risks?',        prefill: false }
+    { label: 'Summarize this record',    text: 'Summarize this record',                                                                                          prefill: false },
+    { label: 'Meeting prep',             text: 'Meeting prep',                                                                                                   prefill: false },
+    { label: 'Log a call',               text: 'Log a call with [Contact], discussed [topic], [X] minutes',                                                      prefill: true  },
+    { label: 'Draft follow-up email',    text: 'Draft a follow-up email to [Contact] summarizing our call — discussed [topic], next steps: [action]',            prefill: true  },
+    { label: 'What are the next steps?', text: 'What are the next steps?',                                                                                       prefill: false },
+    { label: 'Open Opportunities',       text: 'Open Opportunities',                                                                                             prefill: false },
+    { label: 'What are the risks?',      text: 'What are the risks?',                                                                                            prefill: false },
 ];
 
 const LINE_HEIGHT = 20;

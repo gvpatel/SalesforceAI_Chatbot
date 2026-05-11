@@ -88,7 +88,7 @@ All components use the `lnchat` prefix (LNChat naming convention).
 
 - **lnchatDrawer** — standalone fixed-position FAB (floating action button) that slides open a full-height drawer panel; hosts `lnchatShell` in `displayMode="drawer"`; can be placed on any Lightning page
 - **lnchatShell** — top-level container; owns conversation state, loads/clears history, dispatches to Apex for read and write; adapts layout via `@api displayMode` (`utility` | `sidebar` | `drawer`)
-- **lnchatInput** — textarea with suggestion chips + `+` attach button; fires `messagesend` with `{ message, attachment }` and `attacherror` on bad file. Chips: *Summarize this record / Open Opportunities / Open Cases / Open Tasks / What are the risks?*
+- **lnchatInput** — textarea with suggestion chips + `+` attach button; fires `messagesend` with `{ message, attachment }` and `attacherror` on bad file. Chips: *Summarize this record / What are the next steps? / Meeting prep / Open Opportunities / Show overdue tasks / What are the risks?*
 - **lnchatHistory** — renders message list with timestamps and attachment pills; bubbles `recordactionconfirm` / `recordactioncancel` / `recordnavigate` / `alertproceed` / `alertcancel` events up to lnchatShell
 - **lnchatResponseRenderer** — routes to one of 8 display components based on `responseType`
   - `lnchatKpiCardGrid` — metrics with trends and SLDS icon aliases
@@ -104,10 +104,12 @@ All components use the `lnchat` prefix (LNChat naming convention).
 
 | Class | Role |
 |---|---|
-| `LNChatController` | `@AuraEnabled` entry point: `sendMessage()` (5 params including `attachmentJson`), `getConversationHistory()`, `clearConversationHistory()`, `executeRecordAction()` |
-| `LNChatLLMService` | Builds system prompt (8 response schemas + 13 rules), constructs multimodal OpenAI messages, calls `/v1/chat/completions`, handles retries and token-limit errors |
+| `LNChatController` | `@AuraEnabled` entry point: `sendMessage()` (5 params including `attachmentJson`), `getConversationHistory()`, `clearConversationHistory()`, `executeRecordAction()`, `sendEmail()` |
+| `LNChatLLMService` | Builds system prompt (8 response schemas + 16 rules), constructs multimodal OpenAI messages, calls `/v1/chat/completions`, handles retries and token-limit errors |
 | `LNChatContextBuilderService` | Assembles full Salesforce context + external data before calling LLM (see Context Coverage) |
 | `LNChatRecordActionService` | Performs CREATE/UPDATE DML for Account/Contact/Task/Case/Opportunity/Quote with duplicate and ambiguity checks |
+| `LNChatDigestBatch` | Batch Apex (`Database.Batchable + Database.AllowsCallouts`, size=1) — scores each rep's accounts red/yellow/green, calls LLM once per rep, emails personalised weekly digest; skips all-green reps |
+| `LNChatDigestScheduler` | Schedulable — triggers `LNChatDigestBatch` on a cron schedule (e.g. every Monday 7 AM) |
 | `LNChatERPService` | HTTP POST template for ERP integration |
 | `LNChatBIService` | HTTP POST template for BI integration |
 | `LNChatResponseDTO` | Deserializes structured JSON from LLM response |
@@ -150,6 +152,8 @@ Full record fields are always queried via dynamic SOQL. Related data is filtered
 Each related query is individually try-caught so missing/disabled objects (e.g. Quotes not enabled) silently skip.
 
 The LLM is also instructed (Rule 13) to show at most 5 items per section and add a `+ N more open [object]...` placeholder when context contains more records. KPI counts reflect totals, not the 5 shown.
+
+Rule 15 routes list/search queries to `record_list`. Rule 16 (MEETING PREP) routes "meeting prep" / "prep me for a meeting" / "call prep" to `record_summary` with pre-call framing (talking points, key contacts, risks, open deals).
 
 ### LLM Response Schemas (8 types)
 
@@ -225,6 +229,11 @@ Named Credentials deployed to GPRLM1: `OpenAI_GPT` (endpoint: `https://api.opena
 1. **API key** — Setup → Custom Metadata Types → AI Config → Manage Records → New → Developer Name: `Default`, set `ApiKey__c`, `ModelName__c`, `MaxTokens__c = 4096`
 2. **Named Credential** — already deployed via CLI; verify `OpenAI_GPT` endpoint matches your target (`https://api.openai.com`)
 3. **Utility bar** — Setup → App Manager → your app → Edit → Utility Items → Add `lnchatDrawer`
+4. **Weekly digest** (optional) — run once in Developer Console to schedule:
+   ```apex
+   System.schedule('LNChat Weekly Digest', '0 0 7 ? * MON', new LNChatDigestScheduler());
+   ```
+   To test immediately: `Database.executeBatch(new LNChatDigestBatch(), 1);`
 
 ## Setup Reference
 

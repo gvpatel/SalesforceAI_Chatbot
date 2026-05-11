@@ -110,6 +110,7 @@
     .intent-card.teal    { border-top-color: #0e7c86; }
     .intent-card.indigo  { border-top-color: #3a3ec8; }
     .intent-card.navy    { border-top-color: #014486; }
+    .intent-card.rose    { border-top-color: #c2185b; }
 
     .intent-pill {
       display: inline-block;
@@ -129,6 +130,7 @@
     .pill-teal   { background: #e0f5f5; color: #0e7c86; }
     .pill-indigo { background: #eaebff; color: #3a3ec8; }
     .pill-navy   { background: #e0eaf5; color: #014486; }
+    .pill-rose   { background: #fce4ec; color: #c2185b; }
 
     .intent-card h3 { font-size: 0.85rem; margin-bottom: 0.3rem; color: #1a1a2e; }
     .intent-card p  { font-size: 0.78rem; color: #555; margin-bottom: 0.6rem; line-height: 1.5; }
@@ -247,7 +249,8 @@
   <p>How the Salesforce AI Chatbot understands what users want and selects the right visual response — powered by GPT-4o's structured JSON output.</p>
   <div>
     <span class="badge">GPT-4o</span>
-    <span class="badge">9 Intent Types</span>
+    <span class="badge">10 Intent Types</span>
+    <span class="badge">18 Rules</span>
     <span class="badge">Salesforce LWC</span>
     <span class="badge">Structured JSON</span>
   </div>
@@ -335,8 +338,8 @@
         <!-- OpenAI box -->
         <rect x="435" y="163" width="170" height="120" rx="7" fill="#e07b1a"/>
         <text x="520" y="187" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">GPT-4o</text>
-        <text x="520" y="205" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">System prompt: 9 schemas</text>
-        <text x="520" y="220" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">+ 14 rules</text>
+        <text x="520" y="205" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">System prompt: 10 schemas</text>
+        <text x="520" y="220" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">+ 18 rules</text>
         <text x="520" y="240" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">response_format:</text>
         <text x="520" y="255" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff">json_object</text>
         <text x="520" y="273" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">→ responseType = intent</text>
@@ -414,7 +417,7 @@
 
   <!-- ── 9 INTENT TYPES ── -->
   <section>
-    <h2>The 9 Intent Types</h2>
+    <h2>The 10 Intent Types</h2>
     <p style="font-size:0.88rem;color:#555;margin-bottom:1.25rem">GPT-4o selects one of these schemas based on the user's message. Each maps directly to a dedicated LWC visual component.</p>
     <div class="intent-grid">
 
@@ -517,6 +520,17 @@
         </div>
       </div>
 
+      <div class="intent-card rose">
+        <span class="intent-pill pill-rose">record_list</span>
+        <h3>Record List</h3>
+        <p>Searches and lists multiple records across the org using dynamic SOQL filters. Supports "my" records, date literals, and field operators.</p>
+        <div class="example-chips">
+          <span class="chip">"Show my open opportunities"</span>
+          <span class="chip">"Find overdue tasks this week"</span>
+          <span class="chip">"List accounts with no activity"</span>
+        </div>
+      </div>
+
     </div>
   </section>
 
@@ -545,6 +559,9 @@
           <div class="step"><div class="step-num" style="background:#e07b1a">R8</div><div class="step-body"><strong>record_action is mandatory for create/update</strong><span>Never tell the user to do it manually.</span></div></div>
           <div class="step"><div class="step-num" style="background:#0176d3">R13</div><div class="step-body"><strong>record_summary is mandatory for "summarize"</strong><span>Always use Schema 7 for overview requests.</span></div></div>
           <div class="step"><div class="step-num" style="background:#706e6b">R1</div><div class="step-body"><strong>Never default to summary</strong><span>When numbers, trends, or timelines are present, pick the richer type.</span></div></div>
+          <div class="step"><div class="step-num" style="background:#c2185b">R15</div><div class="step-body"><strong>record_list for multi-record search</strong><span>"Show my open opps", "find overdue tasks" → record_list, never summary.</span></div></div>
+          <div class="step"><div class="step-num" style="background:#014486">R16</div><div class="step-body"><strong>Meeting prep → record_summary with pre-call framing</strong><span>Talking points, key contacts, risks, and open deals.</span></div></div>
+          <div class="step"><div class="step-num" style="background:#2e844a">R17</div><div class="step-body"><strong>Log a call → record_action Task (Type=Call, Status=Completed)</strong><span>Contact linked via WhoId; WhoName/WhatName always included for display.</span></div></div>
         </div>
       </div>
     </div>
@@ -640,6 +657,57 @@
         </div>
       </div>
 
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"Meeting prep"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#0176d3">responseType: "record_summary"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatRecordSummary (pre-call framing + talking points)</div>
+        </div>
+      </div>
+
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"Log a call with John Smith, discussed renewal, 30 minutes"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#a85500">responseType: "record_action"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatRecordActionCard (Task: Type=Call, Status=Completed)</div>
+        </div>
+      </div>
+
+      <div class="example-row">
+        <div class="ex-box">
+          <div class="label">User says</div>
+          <div class="value">"Show my open opportunities closing this month"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box highlight">
+          <div class="label">GPT-4o returns</div>
+          <div class="value" style="color:#c2185b">responseType: "record_list"</div>
+        </div>
+        <div class="arrow-cell">→</div>
+        <div class="ex-box">
+          <div class="label">LWC renders</div>
+          <div class="value">lnchatRecordList (dynamic SOQL, THIS_MONTH filter)</div>
+        </div>
+      </div>
+
     </div>
   </section>
 
@@ -670,6 +738,7 @@
             <span class="db" style="background:#eaebff;color:#3a3ec8">comparison</span>
             <span class="db" style="background:#e0eaf5;color:#014486">table</span>
             <span class="db" style="background:#f3f3f3;color:#706e6b">summary</span>
+            <span class="db" style="background:#fce4ec;color:#c2185b">record_list</span>
           </div>
           <p style="font-size:0.78rem;color:#888;margin-top:0.75rem">Uncheck in App Builder to hide. No redeployment needed.</p>
         </div>
@@ -686,7 +755,7 @@
         <div>
           <h3 style="margin-bottom:0.6rem">Input to GPT-4o</h3>
           <div class="steps">
-            <div class="step"><div class="step-num" style="background:#032d60">1</div><div class="step-body"><strong>System Prompt</strong><span>9 JSON schemas, 14 selection rules, field API name lists, auto-association rules</span></div></div>
+            <div class="step"><div class="step-num" style="background:#032d60">1</div><div class="step-body"><strong>System Prompt</strong><span>10 JSON schemas, 18 selection rules, field API name lists, auto-association rules</span></div></div>
             <div class="step"><div class="step-num" style="background:#032d60">2</div><div class="step-body"><strong>Salesforce Record Context</strong><span>All field values + related records (Contacts, Opps, Cases, Tasks, Quotes, Orders, Contracts)</span></div></div>
             <div class="step"><div class="step-num" style="background:#032d60">3</div><div class="step-body"><strong>External Data</strong><span>ERP record data + BI metrics (revenue, pipeline, activity)</span></div></div>
             <div class="step"><div class="step-num" style="background:#032d60">4</div><div class="step-body"><strong>Conversation History</strong><span>Last 10 messages for multi-turn context awareness</span></div></div>
