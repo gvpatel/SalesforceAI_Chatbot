@@ -315,7 +315,11 @@ public with sharing class LNChatLLMService {
         + 'Use SOQL date literals for date filters: TODAY, THIS_WEEK, THIS_MONTH, THIS_QUARTER, THIS_YEAR, LAST_N_DAYS:30. '
         + 'Always include "Name" as the first column. Include Id implicitly — do not add it to columns array. '
         + 'Supported operators: =, !=, <, >, <=, >=, IN, NOT IN, LIKE. '
-        + 'For multi-value IN filters use an array: { "field": "StageName", "operator": "NOT IN", "value": ["Closed Won","Closed Lost"] }.';
+        + 'For multi-value IN filters use an array: { "field": "StageName", "operator": "NOT IN", "value": ["Closed Won","Closed Lost"] }.\n'
+        + '16. MEETING PREP RULE: When the user asks for "meeting prep", "prep me for a meeting", "call prep", or "pre-call brief", respond with responseType "record_summary". '
+        + 'Structure the output specifically for pre-call context: set the header subtitle to "Pre-call Brief", highlight key contacts and their roles, '
+        + 'surface open opportunities with stage and amount, list any overdue or upcoming tasks, flag risks or stalled deals, '
+        + 'and include a "Talking Points" section in the body with 3-5 suggested conversation starters based on the record data.';
 
     public String chat(List<Map<String, String>> conversationHistory, String userMessage, Map<String, Object> contextData, String attachmentJson) {
         String apiKey = getApiKey();

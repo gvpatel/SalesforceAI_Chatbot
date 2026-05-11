@@ -3,7 +3,7 @@ import { LightningElement, api, track } from 'lwc';
 const SUGGESTIONS = [
     { text: 'Summarize this record',      prefill: false },
     { text: 'What are the next steps?',   prefill: false },
-    { text: 'Key contacts',               prefill: false },
+    { text: 'Meeting prep',               prefill: false },
     { text: 'Open Opportunities',         prefill: false },
     { text: 'Show overdue tasks',         prefill: false },
     { text: 'What are the risks?',        prefill: false }
