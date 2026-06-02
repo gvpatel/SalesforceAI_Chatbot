@@ -1,0 +1,39 @@
+{
+  "objectSets": [
+    {
+      "objects": [
+        {
+          "//": "===== Account (Readonly \u2014 link resolver, matched by Name) =====",
+          "query": "SELECT Id, Name FROM Account WHERE Id IN ('001f400000tZsyUAAS')",
+          "operation": "Readonly",
+          "externalId": "Name"
+        },
+        {
+          "//": "===== Contact (Readonly \u2014 link resolver, matched by name) =====",
+          "query": "SELECT Id, FirstName, LastName, AccountId FROM Contact WHERE AccountId IN (SELECT Id FROM Account WHERE Id IN ('001f400000tZsyUAAS'))",
+          "operation": "Readonly",
+          "externalId": "LastName;FirstName"
+        },
+        {
+          "//": "===== Opportunity (Insert \u2014 stage remapped to open) =====",
+          "query": "SELECT Id, AccountId, RecordTypeId, IsPrivate, Name, Description, StageName, Amount, Probability, TotalOpportunityQuantity, CloseDate, Type, NextStep, LeadSource, ForecastCategoryName, CurrencyIsoCode, OwnerId, IsExcludedFromTerritory2Filter, Budget_Confirmed__c, Discovery_Completed__c, ROI_Analysis_Completed__c, DB_Competitor__c, Loss_Reason__c, GCRM_Opportunity_ID__c, Source_Code__c, S4STEO__Transferring_History__c, Entry_Stage__c, Second_Stage_Transition__c, Opportunity_Competitor_Flag__c, Campaign_Member_ID__c, Interest_Detail__c, Comments__c, AAR__c, ACV__c, Agreement_ID__c, Agreement_Number__c, Business_Unit__c, Committed__c, Product_Segment__c, Term_Type__c, Territory__c, Today__c, End_Date__c, Revenue_Risk_Reason__c, Revenue_Risk__c, Manager_Forecast_Category__c, Agreement_Rev_num__c, Outreach_Attributed_Finished_Sequences__c, Outreach_Last_Touch_Contact__c, Outreach_Last_Touch_Sequence__c, Process_Name__c, Financial_Account_Name__c, Invoice_Frequency__c, Line_of_Business__c, Order_Notes__c, Program_Name__c, Promo_Name__c, User__c, SalesLoft1__Most_Recent_Cadence_Name__c, SalesLoft1__Most_Recent_Last_Completed_Step__c, SalesLoft1__Primary_Contact__c, GCLID__c, Last_Action__c, LID__CurrentGenerators__c, LID__DeliveryInstallationStatus__c, LID__Is_Influenced__c, LID__LinkedIn_Company_Id__c, LID__MainCompetitors__c, LID__My_DateTime__c, LID__My_Geolocation__Latitude__s, LID__My_Geolocation__Longitude__s, LID__OrderNumber__c, LID__TrackingNumber__c, Case__c, Oppty_Owner_At_Close__c, SBQQ__Contracted__c, SBQQ__CreateContractedPrices__c, SBQQ__OrderGroupID__c, SBQQ__Ordered__c, SBQQ__QuotePricebookId__c, SBQQ__Renewal__c, sbaa__ApprovalStatus__c, sbaa__ApprovalStep__c, sbaa__Approver__c, sbaa__StepApproved__c, sbaa__SubmittedDate__c, sbaa__SubmittedUser__c, ID_Holder_Names_Attached__c, IP_Address__c, Primary_Jurisdiction__c, Quote_Primary_Contact__c, Task_Converted__c, ActivityID__c, Auxiliary_Access__c, IsShowAdobeSignButton__c, isHideValidateButton__c, Alliance_Opportunity__c, Alliance_Pricing_Type__c, Expected_Alliance_Revenue__c, Revenue_Share_Rate__c, PriceList_PGUID__c, sfcid__c, utm_campaign__c, utm_content__c, utm_medium__c, utm_source__c, utm_term__c, Gong__MainCompetitors__c, Generated_From__c, Billing_Country__c, PhoneBurner__TrackingNumber__c, Hubspot_Available__c, Unassisted_Sales__c, Account_Category__c, Pipeline_POS__c, Pipeline_Revenue__c, isLocked__c, Nexis_Data_Opportunity__c, MSCLKID__c, E_commerce_Number__c, Sources__c, IsNew__c, kiUrl__c, Cancellation_Comments__c, Cancellation_Reason__c, Contract_Cancelled_at_Term_End__c, Missing_Admin_Contact__c, Show_GNS_BBD_Prior_Months_Alert__c, On_Hold__c, Pause_Pricing_Notification__c, Pricing_Notification_Email_Sent_Date__c, fbclid__c, Cancellation_Date__c, Show_GNS_EOM_Alert__c FROM Opportunity WHERE AccountId IN (SELECT Id FROM Account WHERE Id IN ('001f400000tZsyUAAS'))",
+          "operation": "Insert",
+          "externalId": "Id",
+          "useValuesMapping": true
+        },
+        {
+          "//": "===== Task (Insert \u2014 linked via WhatId$Account / WhoId$Contact) =====",
+          "query": "SELECT Id, Subject, ActivityDate, Status, Priority, OwnerId, Description, CurrencyIsoCode, Type, CallDurationInSeconds, CallType, CallDisposition, CallObject, ReminderDateTime, IsReminderSet, IsRecurrence, RecurrenceStartDateOnly, RecurrenceEndDateOnly, RecurrenceTimeZoneSidKey, RecurrenceType, RecurrenceInterval, RecurrenceDayOfWeekMask, RecurrenceDayOfMonth, RecurrenceInstance, RecurrenceMonthOfYear, RecurrenceRegeneratedType, TaskSubtype, Attachment__c, City__c, Country__c, Created_By_Segment__c, Gong__Activity_Source__c, SalesLoft1__Call_Disposition__c, State__c, Street__c, Sub_Type__c, Total_Attendee__c, Type__c, Zip_Postal_Code__c, Categorisation__c, Email_Template_Name__c, GCRM_Activity_Id__c, S4STEO__Transferring_History__c, Practice_Area__c, Attach_Flag__c, Gong__Associated_Accounts__c, Gong__Associated_Opportunities__c, Gong__Current_Flow_ID__c, Delivery_Method__c, Product__c, SalesLoft1__Call_Sentiment__c, SalesLoft1__SalesLoft_Cadence_Name__c, SalesLoft1__SalesLoft_Clicked_Count__c, SalesLoft1__SalesLoft_Email_Template_Title__c, SalesLoft1__SalesLoft_Replies_Count__c, SalesLoft1__SalesLoft_Step_Day__c, SalesLoft1__SalesLoft_View_Count__c, Outcome__c, InviteeUuid__c, Process__c, Chat_Marquee__c, Agreement_Number__c, Contract_End_Date__c, Quote_Name__c, Status__c, Zoom_Meeting_Intro__c, LID__Date_Sent__c, LID__URL__c, Business_Unit__c, Opportunity__c, Onboarding_Specialist__c, Gong__Current_Flow_Name__c, Gong__Current_Flow_Step_Number__c, Gong__Flow_Execution_ID__c, Gong__Gong_Participants_Emails__c, Gong__Meeting_Prospect_Canceled__c, Gong__Meeting_Reschedule_Count__c, GCLID__c, sfcid__c, UTM_Campaign__c, UTM_Content__c, UTM_Medium__c, UTM_Source__c, UTM_Term__c, Pardot_Comments__c, Auto_Routed__c, WhatId$Account, WhoId$Contact FROM Task WHERE AccountId IN (SELECT Id FROM Account WHERE Id IN ('001f400000tZsyUAAS'))",
+          "operation": "Insert",
+          "externalId": "Id"
+        }
+      ]
+    }
+  ],
+  "promptOnUpdateError": true,
+  "promptOnMissingParentObjects": false,
+  "allOrNone": false,
+  "bulkApiVersion": "2.0",
+  "bulkThreshold": 200,
+  "alwaysUseRestApiToUpdateRecords": false
+}

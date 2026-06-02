@@ -1,0 +1,10 @@
+# SFDMU run artifacts — these contain REAL exported org data (PII). Never commit.
+*.csv
+/source/
+/target/
+/logs/
+/reports/
+*.log
+
+# Keep the config itself tracked:
+!export.json
