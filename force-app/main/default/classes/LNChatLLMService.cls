@@ -150,7 +150,8 @@ public with sharing class LNChatLLMService {
         + '          }\n'
         + '        ]\n'
         + '      }\n'
-        + '    ]\n'
+        + '    ],\n'
+        + '    "overview": { "title": "Results from the Web", "results": [ { "text": "one-sentence finding about the company", "url": "https://source-url" } ] }\n'
         + '  },\n'
         + '  "actions": []\n'
         + '}\n\n'
@@ -330,7 +331,15 @@ public with sharing class LNChatLLMService {
         + '18. ID DISPLAY RULE: In any record_action response, whenever you set WhoId, also include WhoName with the contact or lead\'s full name. '
         + 'Whenever you set WhatId, also include WhatName with the account, opportunity, or record name. '
         + 'Whenever you set AccountId, also include AccountName with the account name. '
-        + 'These display fields are shown to the user in the confirmation card instead of raw IDs.';
+        + 'These display fields are shown to the user in the confirmation card instead of raw IDs.\n'
+        + '19. RESULTS FROM THE WEB (GROUNDING) RULE: The context may include "webData" (recent-news search results about the company). '
+        + 'When webData.available is true, populate data.overview.results in a record_summary using ONLY webData.answer and webData.sources: '
+        + 'produce up to 5 concise, single-sentence summaries of the most RECENT news items about the company (most recent first; include the date or timeframe in the sentence when known), '
+        + 'and for each set "url" to the most relevant source URL drawn from webData.sources. '
+        + 'Set data.overview.title to "Results from the Web". '
+        + 'NEVER invent facts or URLs — every url must be one present in webData.sources. '
+        + 'If webData is absent or webData.available is false, OMIT the overview field entirely. '
+        + 'Do not use your own training knowledge for these results — only the provided webData.';
 
     public String chat(List<Map<String, String>> conversationHistory, String userMessage, Map<String, Object> contextData, String attachmentJson) {
         String apiKey = getApiKey();

@@ -1,6 +1,18 @@
 public with sharing class LNChatContextBuilderService {
 
+    // Summary/overview intent keywords (aligned with LLMService Rule 16) that
+    // gate the optional web-search callout so it fires only when relevant.
+    private static final List<String> SUMMARY_INTENT_KEYWORDS = new List<String>{
+        'summarize', 'summary', 'overview', 'review', 'meeting prep',
+        'call prep', 'pre-call', 'brief'
+    };
+
+    // Backwards-compatible overload (no user message → no web enrichment).
     public Map<String, Object> buildContext(String recordId, String objectApiName) {
+        return buildContext(recordId, objectApiName, null);
+    }
+
+    public Map<String, Object> buildContext(String recordId, String objectApiName, String userMessage) {
         Map<String, Object> context = new Map<String, Object>();
 
         if (String.isBlank(recordId) || String.isBlank(objectApiName)) {
@@ -39,9 +51,47 @@ public with sharing class LNChatContextBuilderService {
         }
         context.put('biData', biData);
 
+        // Internet-sourced company overview — only for Account summaries, to keep
+        // the extra callout (and the account name leaving the org) off non-summary turns.
+        if (objectApiName == 'Account' && wantsSummary(userMessage)) {
+            try {
+                LNChatWebService webSvc = new LNChatWebService();
+                String acctName = (String) sfRecord.get('Name');
+                String website = (String) sfRecord.get('Website');
+                String location = buildLocation(sfRecord);
+                context.put('webData', webSvc.getCompanyOverview(acctName, website, location));
+            } catch (Exception e) {
+                System.debug(LoggingLevel.WARN, 'Web data fetch failed: ' + e.getMessage());
+                context.put('webData', new Map<String, Object>{ 'available' => false, 'reason' => e.getMessage() });
+            }
+        }
+
         context.put('contextBuildTimestamp', String.valueOf(System.now()));
 
         return context;
+    }
+
+    @TestVisible
+    private static Boolean wantsSummary(String userMessage) {
+        if (String.isBlank(userMessage)) {
+            return false;
+        }
+        String msg = userMessage.toLowerCase();
+        for (String kw : SUMMARY_INTENT_KEYWORDS) {
+            if (msg.contains(kw)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String buildLocation(Map<String, Object> sfRecord) {
+        String city = (String) sfRecord.get('BillingCity');
+        String state = (String) sfRecord.get('BillingState');
+        List<String> parts = new List<String>();
+        if (String.isNotBlank(city)) { parts.add(city); }
+        if (String.isNotBlank(state)) { parts.add(state); }
+        return String.join(parts, ', ');
     }
 
     private Map<String, Object> querySalesforceRecord(String recordId, String objectApiName) {

@@ -29,7 +29,7 @@ npm run test:unit:coverage      # With coverage report
 
 # Apex tests (requires authenticated org)
 sf apex run test \
-  --class-names LNChatControllerTest LNChatRecordActionServiceTest \
+  --class-names LNChatControllerTest LNChatRecordActionServiceTest LNChatWebServiceTest LNChatTimelineServiceTest \
   --target-org GPRLM1 \
   --result-format human --wait 10
 
@@ -52,10 +52,11 @@ User types in lnchatInput (LWC) — optionally attaches a file
   → fires 'messagesend' event with { message, attachment }
   → lnchatShell.handleMessageSend()
   → LNChatController.sendMessage(userMessage, recordId, objectApiName, conversationHistoryJson, attachmentJson)
-      → LNChatContextBuilderService.buildContext()
+      → LNChatContextBuilderService.buildContext(recordId, objectApiName, userMessage)
           → SOQL: query current record + all related objects (see Context Coverage below)
           → LNChatERPService.getRecordData() [HTTP callout]
           → LNChatBIService.getMetrics() [HTTP callout]
+          → LNChatWebService.getCompanyOverview() [HTTP callout — Account + summary intent only]
       → LNChatLLMService.chat(conversationHistory, userMessage, contextData, attachmentJson)
           → builds multimodal messages (text + image/file block if attachment present)
           → HTTP callout → OpenAI /v1/chat/completions
@@ -64,7 +65,7 @@ User types in lnchatInput (LWC) — optionally attaches a file
   → lnchatResponseRenderer picks child component by responseType
 ```
 
-**Callout ordering is critical:** all HTTP callouts (ERP, BI, OpenAI) must precede all DML to comply with Salesforce's mixed-DML/callout restriction.
+**Callout ordering is critical:** all HTTP callouts (ERP, BI, optional Web, OpenAI) must precede all DML to comply with Salesforce's mixed-DML/callout restriction.
 
 ### Write (Create/Update) Flow
 
@@ -97,16 +98,20 @@ All components use the `lnchat` prefix (LNChat naming convention).
   - `lnchatTimelineView` — event sequences with status badges
   - `lnchatAlertBanner` — severity-based alerts (critical/warning/info/success)
   - `lnchatRecordActionCard` — create/update confirmation card with field table and Confirm/Cancel buttons
-  - `lnchatRecordSummary` — rich record overview with header, KPI bar (colour-coded), and related-record sections
+  - `lnchatRecordSummary` — rich record overview with header, KPI bar (colour-coded), related-record sections, and a **"Results from the Web"** block (numbered news cards + per-item Source links) when `data.overview` is present
   - *(summary)* — inline sections + badges (fallback)
+  - On an **Account** `record_summary`, `lnchatResponseRenderer` also renders `lnchatActivityTimeline` at the **top** of the response (gated by `showTimeline = isRecordSummary && objectApiName === 'Account'`); `objectApiName` is threaded shell → history → renderer for this gate
+- **lnchatActivityTimeline** — standalone horizontal activity timeline (Tasks + Events) for Account pages: month-scaled axis, TODAY marker, clustered count nodes with type icons, green engagement-coverage bar, and a click-to-open popover (rendered in-flow/contained so it stays inside narrow chat panels) listing each activity + source, navigating via `NavigationMixin`. `@wire`s `LNChatController.getActivityTimeline`. Placed via App Builder (`lightning__RecordPage`, Account) **and** surfaced inside the chat summary.
 
 ### Apex Layer
 
 | Class | Role |
 |---|---|
-| `LNChatController` | `@AuraEnabled` entry point: `sendMessage()` (5 params including `attachmentJson`), `getConversationHistory()`, `clearConversationHistory()`, `executeRecordAction()`, `sendEmail()` |
-| `LNChatLLMService` | Builds system prompt (8 response schemas + 16 rules), constructs multimodal OpenAI messages, calls `/v1/chat/completions`, handles retries and token-limit errors |
-| `LNChatContextBuilderService` | Assembles full Salesforce context + external data before calling LLM (see Context Coverage) |
+| `LNChatController` | `@AuraEnabled` entry point: `sendMessage()` (5 params including `attachmentJson`), `getConversationHistory()`, `clearConversationHistory()`, `executeRecordAction()`, `sendEmail()`, `searchRecords()`, `getActivityTimeline()` (`cacheable=true`) |
+| `LNChatLLMService` | Builds system prompt (8 response schemas + 19 rules), constructs multimodal OpenAI messages, calls `/v1/chat/completions`, handles retries and token-limit errors |
+| `LNChatContextBuilderService` | Assembles full Salesforce context + external data before calling LLM (see Context Coverage); on Account **summary-intent** turns also calls `LNChatWebService` |
+| `LNChatWebService` | Fetches a grounded **"Results from the Web"** company news feed via OpenAI's web-search model (`gpt-4o-search-preview`), reusing the `OpenAI_GPT` Named Credential + `ApiKey__c`. Defensive (`{available,...}`); org-safe. |
+| `LNChatTimelineService` | Returns a chronological Task+Event activity feed for an Account (for the activity-timeline LWC); dynamic, org-safe **source** detection (Salesforce / Gong / SalesLoft) |
 | `LNChatRecordActionService` | Performs CREATE/UPDATE DML for Account/Contact/Task/Case/Opportunity/Quote with duplicate and ambiguity checks |
 | `LNChatDigestBatch` | Batch Apex (`Database.Batchable + Database.AllowsCallouts`, size=1) — scores each rep's accounts red/yellow/green, calls LLM once per rep, emails personalised weekly digest; skips all-green reps |
 | `LNChatDigestScheduler` | Schedulable — triggers `LNChatDigestBatch` on a cron schedule (e.g. every Monday 7 AM) |
@@ -153,7 +158,9 @@ Each related query is individually try-caught so missing/disabled objects (e.g. 
 
 The LLM is also instructed (Rule 13) to show at most 5 items per section and add a `+ N more open [object]...` placeholder when context contains more records. KPI counts reflect totals, not the 5 shown.
 
-Rule 15 routes list/search queries to `record_list`. Rule 16 (MEETING PREP) routes "meeting prep" / "prep me for a meeting" / "call prep" to `record_summary` with pre-call framing (talking points, key contacts, risks, open deals).
+Rule 15 routes list/search queries to `record_list`. Rule 16 (MEETING PREP) routes "meeting prep" / "prep me for a meeting" / "call prep" to `record_summary` with pre-call framing (talking points, key contacts, risks, open deals). Rule 17 (LOG A CALL) and Rule 18 (ID DISPLAY) cover call logging and friendly Id labels. **Rule 19 (RESULTS FROM THE WEB)** populates `data.overview.results` (recent-news findings, each with a source URL) using **only** `webData` — never the model's own knowledge; the block is omitted when `webData` is absent/unavailable.
+
+**Web-search enrichment:** `buildContext` now takes `userMessage` and, only when `objectApiName == 'Account'` **and** the message matches summary intent (summarize / overview / review / meeting prep / call prep / brief), calls `LNChatWebService` and adds `webData` to the context. This keeps the extra callout (and the account name leaving the org) off non-summary turns.
 
 ### LLM Response Schemas (8 types)
 
@@ -209,7 +216,7 @@ Named Credentials deployed to GPRLM1: `OpenAI_GPT` (endpoint: `https://api.opena
 
 ## Key Constraints
 
-- **Governor limits:** 3 callouts per `sendMessage()` transaction (ERP + BI + OpenAI). All callouts must precede DML.
+- **Governor limits:** up to 4 callouts per `sendMessage()` transaction (ERP + BI + OpenAI, plus an optional Web-search callout on Account summary-intent turns). All callouts must precede DML.
 - **API key location:** `AI_Config__mdt` record `Default` — set `ApiKey__c` via Setup UI only, never commit to source.
 - **MaxTokens:** Set `MaxTokens__c` to **4096** (or higher) in `AI_Config__mdt`. Values ≤ 2000 cause empty responses (`finish_reason: length`) for large contexts like record summaries. `LNChatLLMService` default fallback is 4096.
 - **LWC rendering:** AI responses are rendered as structured data objects, not raw HTML.
@@ -223,13 +230,19 @@ Named Credentials deployed to GPRLM1: `OpenAI_GPT` (endpoint: `https://api.opena
 - **File attachment limits:** Images and PDFs are capped at 3 MB before base64 encoding (~4 MB encoded). Text files are capped at 500 KB. These stay within Salesforce's `@AuraEnabled` request-body limits.
 - **displayMode property:** `lnchatShell` accepts `@api displayMode` = `"utility"` (default, utility bar), `"sidebar"` (App Builder column), or `"drawer"` (used by `lnchatDrawer`). The minimize button is hidden in sidebar and drawer modes.
 - **Open-records-only context:** `LNChatContextBuilderService` filters related records to open/active only (open opps, non-closed cases, incomplete tasks) with LIMIT 5 per section. This prevents oversized summaries on accounts with many historical records.
+- **`webservice` is a reserved Apex keyword:** Apex identifiers are case-insensitive, so a local variable named `webService` fails to compile ("Unexpected token"). Use `webSvc` or similar.
+- **Web search reuses the OpenAI key:** `LNChatWebService` calls `gpt-4o-search-preview` via the existing `OpenAI_GPT` Named Credential + `AI_Config__mdt.ApiKey__c` — no separate vendor/key. Verify the search model id/pricing (the `SEARCH_MODEL` constant) and that the key's account can use it. Disabled gracefully when unavailable (overview omitted).
+- **Org-safe source detection:** `LNChatTimelineService` builds its SOQL field list dynamically via `Schema` describe, referencing managed integration fields (`Gong__*`, `SalesLoft1__*`) **only when present** — so it deploys to GPRLM1 (no such packages → every activity reads `Salesforce`) and lights up real sources in LNUAT/LNAI.
+- **Task/Event `AccountId`:** both expose a queryable standard `AccountId` (platform-derived from `WhatId`/`WhoId`), so timeline queries filter `WHERE AccountId = :recordId` directly — no Contact join needed.
 
 ## Post-Deploy Manual Steps (new org)
 
 1. **API key** — Setup → Custom Metadata Types → AI Config → Manage Records → New → Developer Name: `Default`, set `ApiKey__c`, `ModelName__c`, `MaxTokens__c = 4096`
 2. **Named Credential** — already deployed via CLI; verify `OpenAI_GPT` endpoint matches your target (`https://api.openai.com`)
 3. **Utility bar** — Setup → App Manager → your app → Edit → Utility Items → Add `lnchatDrawer`
-4. **Weekly digest** (optional) — run once in Developer Console to schedule:
+4. **Activity timeline** (optional) — Account record page → Edit Page → drag `lnchatActivityTimeline` to the top → Save/Activate. (It also auto-renders inside Account chat summaries — no setup needed there.)
+5. **Web "Results from the Web"** — no extra config; reuses the OpenAI `ApiKey__c`. Requires that key's account to have access to a search-capable model.
+6. **Weekly digest** (optional) — run once in Developer Console to schedule:
    ```apex
    System.schedule('LNChat Weekly Digest', '0 0 7 ? * MON', new LNChatDigestScheduler());
    ```

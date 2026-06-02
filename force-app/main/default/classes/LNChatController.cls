@@ -15,7 +15,7 @@ public with sharing class LNChatController {
 
             // All callouts must happen before any DML
             LNChatContextBuilderService contextBuilder = new LNChatContextBuilderService();
-            Map<String, Object> contextData = contextBuilder.buildContext(recordId, objectApiName);
+            Map<String, Object> contextData = contextBuilder.buildContext(recordId, objectApiName, userMessage);
 
             List<Map<String, String>> conversationHistory = parseConversationHistory(conversationHistoryJson);
 
@@ -97,6 +97,11 @@ public with sharing class LNChatController {
         }
 
         return messages;
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static Map<String, Object> getActivityTimeline(String recordId) {
+        return new LNChatTimelineService().getActivityTimeline(recordId);
     }
 
     @AuraEnabled

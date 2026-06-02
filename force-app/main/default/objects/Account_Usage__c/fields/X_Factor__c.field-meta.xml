@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>X_Factor__c</fullName>
+    <description>X Factor value is coming from Redshift. We are storing in Account Usage.</description>
+    <externalId>false</externalId>
+    <label>X Factor</label>
+    <precision>11</precision>
+    <required>false</required>
+    <scale>1</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

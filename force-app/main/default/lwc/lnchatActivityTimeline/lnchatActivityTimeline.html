@@ -1,0 +1,117 @@
+<template>
+  <div class="tl-card">
+    <h2 class="tl-title">Timeline</h2>
+
+    <template if:true={loading}>
+      <div class="tl-state">
+        <lightning-spinner
+          alternative-text="Loading"
+          size="small"
+        ></lightning-spinner>
+      </div>
+    </template>
+
+    <template if:true={errorMsg}>
+      <div class="tl-state tl-error">{errorMsg}</div>
+    </template>
+
+    <template if:true={showEmpty}>
+      <div class="tl-state">No activities found for this account.</div>
+    </template>
+
+    <template if:true={hasClusters}>
+      <div class="tl-track-wrap">
+        <!-- month gridlines + labels -->
+        <template for:each={months} for:item="m">
+          <div key={m.key} class="tl-month" style={m.leftStyle}>
+            <span class="tl-month-tick"></span>
+            <span class="tl-month-label">{m.label}</span>
+          </div>
+        </template>
+
+        <!-- baseline -->
+        <div class="tl-axis"></div>
+
+        <!-- TODAY marker -->
+        <template if:true={todayPct}>
+          <div class="tl-today" style={todayStyle}>
+            <span class="tl-today-pill">TODAY</span>
+            <span class="tl-today-line"></span>
+          </div>
+        </template>
+
+        <!-- clustered activity nodes -->
+        <template for:each={decoratedClusters} for:item="c">
+          <div key={c.key} class={c.wrapClass} style={c.style}>
+            <lightning-icon
+              icon-name={c.icon}
+              size="x-small"
+              class="tl-node-icon"
+            ></lightning-icon>
+            <button
+              type="button"
+              class={c.ringClass}
+              data-key={c.key}
+              onclick={handleNodeClick}
+              title={c.rangeLabel}
+            >
+              {c.countLabel}
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <!-- coverage bar (engagement span) -->
+      <div class="tl-coverage-track">
+        <div class="tl-coverage-bar" style={coverageStyle}></div>
+      </div>
+
+      <!-- popover for the open cluster -->
+      <template for:each={decoratedClusters} for:item="c">
+        <template if:true={c.isOpen}>
+          <div key={c.key} class="tl-popover">
+            <button
+              type="button"
+              class="tl-popover-close"
+              onclick={handleClosePopover}
+              title="Close"
+            >
+              &times;
+            </button>
+            <p class="tl-popover-range">{c.rangeLabel}</p>
+            <p class="tl-popover-count">{c.eventsLabel}</p>
+            <div class="tl-popover-list">
+              <template for:each={c.items} for:item="it">
+                <button
+                  key={it.key}
+                  type="button"
+                  class="tl-popover-item"
+                  data-id={it.id}
+                  data-sobject={it.sobjectType}
+                  onclick={handleItemClick}
+                >
+                  <lightning-icon
+                    icon-name={it.icon}
+                    size="x-small"
+                    class="tl-popover-item-icon"
+                  ></lightning-icon>
+                  <span class="tl-popover-item-body">
+                    <span class="tl-popover-item-subject">{it.subject}</span>
+                    <span class="tl-popover-item-source">{it.source}</span>
+                  </span>
+                  <span class="tl-popover-item-chevron">&rsaquo;</span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </template>
+      </template>
+
+      <template if:true={truncated}>
+        <p class="tl-truncated">
+          Showing the most recent activities — older items are not displayed.
+        </p>
+      </template>
+    </template>
+  </div>
+</template>

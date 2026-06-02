@@ -14,6 +14,7 @@ export default class LnchatResponseRenderer extends NavigationMixin(LightningEle
     @api summary = '';
     @api data = {};
     @api recordId = '';
+    @api objectApiName = '';
 
     @track _actions = [];
 
@@ -38,6 +39,7 @@ export default class LnchatResponseRenderer extends NavigationMixin(LightningEle
     get isAlert()         { return this.responseType === 'alert'; }
     get isTable()         { return this.responseType === 'table'; }
     get isRecordSummary() { return this.responseType === 'record_summary'; }
+    get showTimeline() { return this.isRecordSummary && this.objectApiName === 'Account' && !!this.recordId; }
     get isRecordAction()  { return this.responseType === 'record_action'; }
     get isRecordList()    { return this.responseType === 'record_list'; }
     get isSummary() {

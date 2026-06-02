@@ -53,6 +53,12 @@
 
         <!-- Record Summary (rich overview with KPI bar + sections) -->
         <template if:true={isRecordSummary}>
+            <template if:true={showTimeline}>
+                <c-lnchat-activity-timeline
+                    record-id={recordId}
+                    object-api-name={objectApiName}
+                ></c-lnchat-activity-timeline>
+            </template>
             <c-lnchat-record-summary summary-data={recordSummaryData}></c-lnchat-record-summary>
         </template>
 

@@ -18,6 +18,7 @@ const INTENT_BADGE_CLASS = {
 
 export default class LnchatHistory extends LightningElement {
     @api recordId = '';
+    @api objectApiName = '';
     @api isTyping = false;
     @api showIntentBadge = false;
     @track messages = [];

@@ -21,6 +21,7 @@ curl -L "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" \
 ```
 
 Then update the resource meta file to match:
+
 ```
 force-app/main/default/staticresources/chartjs.resource-meta.xml  (already created)
 force-app/main/default/staticresources/chartjs.js                  (downloaded above)
@@ -65,6 +66,7 @@ sf project deploy report --target-org my-org
 ```
 
 ### Run Apex tests after deploy
+
 ```bash
 sf apex run test \
   --class-names LNChatControllerTest LNChatRecordActionServiceTest \
@@ -105,9 +107,31 @@ Expected: all tests pass. If tests fail with "OpenAI API key not configured" —
 4. Configure authentication per your BI provider
 5. **Save**
 
+### 4d. Web Search (Optional — internet-sourced company overview in Account summaries)
+
+Asking the chat to **summarize / review / prep** an **Account** adds a grounded
+_Company Overview_ section (text + source links). `LNChatWebService` uses OpenAI's
+**web-search-capable chat model** (`gpt-4o-search-preview`) via the existing
+`OpenAI_GPT` Named Credential and the same `AI_Config__mdt` `ApiKey__c` — **no separate
+search vendor, endpoint, or key**. It fires **only** on those intents, and only on
+Account pages — never on other turns/objects.
+
+Requirements:
+
+1. The OpenAI key in `AI_Config__mdt` `Default` → `ApiKey__c` (already set in Step 5) must have access to a search-capable model.
+2. Verify the current search model id and per-search pricing on OpenAI; update `SEARCH_MODEL` in `LNChatWebService.cls` if it changes.
+
+> **Cost:** the search-preview models add a per-call web-search fee on top of token
+> usage. The intent gate keeps this to summary turns only. To disable entirely, comment
+> out the web block in `LNChatContextBuilderService.buildContext` (or it simply yields no
+> overview if the model/key is unavailable — no errors either way).
+>
+> **Data governance:** when enabled, the account name (and city/state) are sent to OpenAI
+> on summary turns — the same vendor already used for every chat response.
+
 ---
 
-## Step 5 — Store the OpenAI API Key in AI_Config__mdt
+## Step 5 — Store the OpenAI API Key in AI_Config\_\_mdt
 
 The API key must be stored in the **AI Config** Custom Metadata Type.
 
@@ -125,6 +149,10 @@ The API key must be stored in the **AI Config** Custom Metadata Type.
 6. Set **Model Name** to `gpt-4o`
 7. Set **Max Tokens** to `4096`
 8. **Save**
+
+> The same `ApiKey__c` also powers the optional Account-summary Company Overview
+> (Step 4d) — no extra key needed, as long as the key's account can use a
+> search-capable model.
 
 ### Via Metadata Deploy (for scratch orgs / CI — never commit real keys)
 
@@ -150,6 +178,21 @@ Then re-deploy. **Never commit real API keys to source control.**
 ---
 
 ## Step 6 — Add the Component to Lightning Pages
+
+### Activity Timeline (Account pages)
+
+`lnchatActivityTimeline` is a standalone component that renders a horizontal,
+clustered activity timeline (Tasks + Events) at the top of an Account page, with a
+TODAY marker, an engagement-coverage bar, and click-to-open popovers listing each
+activity and its source.
+
+1. Open any **Account** record → gear ⚙ → **Edit Page**
+2. Drag **lnchat Activity Timeline** to the **top** region of the page
+3. **Save** → **Activate** for Account pages
+
+> Source labels (Gong / SalesLoft) appear only in orgs that have those managed
+> packages; elsewhere every activity reads "Salesforce". No configuration needed —
+> it reads Tasks/Events related to the account automatically.
 
 ### Method A — lnchatDrawer via App Builder (Recommended)
 
@@ -184,7 +227,8 @@ Then re-deploy. **Never commit real API keys to source control.**
 ## Step 7 — Assign Required Permissions
 
 Users need:
-- Read/Write access to **LNChatSession__c** and **LNChatMessage__c**
+
+- Read/Write access to **LNChatSession\_\_c** and **LNChatMessage\_\_c**
 - Read access to the target objects (Account, Opportunity, etc.)
 - Access to the **LNChatController** Apex class
 
@@ -276,14 +320,14 @@ in the same transaction.
 
 ## API Version Dependencies
 
-| Component | Minimum API Version |
-|-----------|---------------------|
-| All Apex classes | 62.0 |
-| All LWC components | 62.0 |
-| `lightning/navigation` NavigationMixin | 44.0+ |
-| `lightning/platformResourceLoader` | 40.0+ |
-| `@wire(CurrentPageReference)` | 47.0+ |
-| Custom Metadata Type | 40.0+ |
+| Component                              | Minimum API Version |
+| -------------------------------------- | ------------------- |
+| All Apex classes                       | 62.0                |
+| All LWC components                     | 62.0                |
+| `lightning/navigation` NavigationMixin | 44.0+               |
+| `lightning/platformResourceLoader`     | 40.0+               |
+| `@wire(CurrentPageReference)`          | 47.0+               |
+| Custom Metadata Type                   | 40.0+               |
 
 Target API: **62.0** (Winter '25)
 
@@ -291,41 +335,49 @@ Target API: **62.0** (Winter '25)
 
 ## Troubleshooting
 
-### "OpenAI API key not configured in AI_Config__mdt"
+### "OpenAI API key not configured in AI_Config\_\_mdt"
+
 → Ensure the `AI_Config__mdt` `Default` record exists and has `ApiKey__c` populated.
-   This record is **not deployed** (excluded via `.forceignore`) — create it manually
-   via Setup → Custom Metadata Types → AI Config → Manage Records.
+This record is **not deployed** (excluded via `.forceignore`) — create it manually
+via Setup → Custom Metadata Types → AI Config → Manage Records.
 
 ### Empty AI response / blank response box
-→ `MaxTokens__c` is set too low. Set it to **4096** in AI_Config__mdt.
-   Values ≤ 2000 cause `finish_reason: length` for large record contexts.
+
+→ `MaxTokens__c` is set too low. Set it to **4096** in AI_Config\_\_mdt.
+Values ≤ 2000 cause `finish_reason: length` for large record contexts.
 
 ### Chat panel appears completely blank (no chips, no messages)
+
 → Deploy may have succeeded but the component was previously renamed.
-   All `querySelector` string literals in `lnchatShell.js` must use `'c-lnchat-history'`
-   (not `'c-chatbot-history'`). Verify the deployed JS matches the source.
+All `querySelector` string literals in `lnchatShell.js` must use `'c-lnchat-history'`
+(not `'c-chatbot-history'`). Verify the deployed JS matches the source.
 
 ### Chart does not render
+
 → Verify the `chartjs` static resource is deployed and contains valid JS.
-   In browser DevTools, check the Network tab for the resource load.
-   You may need to add `cdn.jsdelivr.net` to CSP Trusted Sites if using a CDN copy.
+In browser DevTools, check the Network tab for the resource load.
+You may need to add `cdn.jsdelivr.net` to CSP Trusted Sites if using a CDN copy.
 
 ### External system returns empty data
+
 → Check Named Credential URLs and auth config.
-   The chatbot degrades gracefully — it will still respond using Salesforce data only.
+The chatbot degrades gracefully — it will still respond using Salesforce data only.
 
 ### "Too many callouts" error
+
 → If you added additional external services, you may exceed the 100-callout limit.
-   Consider combining ERP and BI into a single aggregator service.
+Consider combining ERP and BI into a single aggregator service.
 
 ### 503 error on file upload / PDF analysis
+
 → OpenAI 503 errors are usually transient. Retry the request.
-   For large PDFs with broad prompts ("extract all content"), the payload may be
-   very large — use more specific prompts to reduce response size.
+For large PDFs with broad prompts ("extract all content"), the payload may be
+very large — use more specific prompts to reduce response size.
 
 ### History not loading on page navigation
+
 → Ensure `LNChatController.getConversationHistory` is accessible (Apex class access
-   in the assigned Permission Set).
+in the assigned Permission Set).
 
 ---
 

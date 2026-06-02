@@ -34,6 +34,31 @@ export default class LnchatRecordSummary extends LightningElement {
         return HEADER_BADGE_CLS[c] || HEADER_BADGE_CLS.neutral;
     }
 
+    get overview() {
+        return (this.summaryData && this.summaryData.overview) || null;
+    }
+
+    get overviewResults() {
+        const results = (this.overview && this.overview.results) || [];
+        return results
+            .filter((r) => r && r.text)
+            .map((r, i) => ({
+                key: ++_keyCounter + '-' + i,
+                number: i + 1 + '.',
+                text: r.text,
+                url: r.url || '',
+                hasUrl: !!r.url
+            }));
+    }
+
+    get hasOverview() {
+        return this.overviewResults.length > 0;
+    }
+
+    get overviewTitle() {
+        return (this.overview && this.overview.title) || 'Results from the Web';
+    }
+
     get hasKpis() {
         return Array.isArray(this.summaryData && this.summaryData.kpis) && this.summaryData.kpis.length > 0;
     }

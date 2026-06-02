@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Account_Usage_External_ID__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>This is external id field . Concatenation of customer number and rep month which is coming from Redshift.</description>
+    <externalId>true</externalId>
+    <label>Account Usage External ID</label>
+    <length>110</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

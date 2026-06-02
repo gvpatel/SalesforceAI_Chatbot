@@ -409,6 +409,49 @@ private class LNChatControllerTest {
     }
 
     @IsTest
+    static void testWebGate_SummaryIntentAddsWebData() {
+        Account acc = new Account(Name = 'Globex Corp', BillingCity = 'Springfield', BillingState = 'IL');
+        insert acc;
+        Test.setMock(HttpCalloutMock.class, new MultiMock(new List<HttpCalloutMock>{
+            new ERPSuccessMock(), new BISuccessMock()
+        }));
+
+        Test.startTest();
+        Map<String, Object> ctx = new LNChatContextBuilderService()
+            .buildContext(acc.Id, 'Account', 'summarize this account');
+        Test.stopTest();
+
+        System.assert(ctx.containsKey('webData'), 'Summary intent on Account should attempt web enrichment');
+        Map<String, Object> webData = (Map<String, Object>) ctx.get('webData');
+        // No API key configured in the test org -> graceful unavailable, no callout made.
+        System.assertEquals(false, webData.get('available'));
+    }
+
+    @IsTest
+    static void testWebGate_NonSummaryNoWebData() {
+        Account acc = new Account(Name = 'Globex Corp');
+        insert acc;
+        Test.setMock(HttpCalloutMock.class, new MultiMock(new List<HttpCalloutMock>{
+            new ERPSuccessMock(), new BISuccessMock()
+        }));
+
+        Test.startTest();
+        Map<String, Object> ctx = new LNChatContextBuilderService()
+            .buildContext(acc.Id, 'Account', 'show open opportunities');
+        Test.stopTest();
+
+        System.assertEquals(false, ctx.containsKey('webData'), 'Non-summary intent should not call web');
+    }
+
+    @IsTest
+    static void testWantsSummary() {
+        System.assertEquals(true, LNChatContextBuilderService.wantsSummary('Please summarize this account'));
+        System.assertEquals(true, LNChatContextBuilderService.wantsSummary('meeting prep please'));
+        System.assertEquals(false, LNChatContextBuilderService.wantsSummary('create a contact'));
+        System.assertEquals(false, LNChatContextBuilderService.wantsSummary(null));
+    }
+
+    @IsTest
     static void testContextBuilder_MissingRecordId() {
         Test.startTest();
         LNChatContextBuilderService builder = new LNChatContextBuilderService();

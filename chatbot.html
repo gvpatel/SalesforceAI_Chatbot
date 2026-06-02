@@ -480,6 +480,8 @@
       <span class="badge">10 Response Types</span>
       <span class="badge">Email Digest</span>
       <span class="badge">Record Create / Update</span>
+      <span class="badge">Web Search (Company News)</span>
+      <span class="badge">Activity Timeline</span>
     </div>
   </div>
 </header>
@@ -509,24 +511,24 @@
     <h2>Overview</h2>
     <div class="card">
       <p>The chatbot is embedded as a <strong>Utility Bar component</strong> (or placed on any record page via <code class="inline">chatbotDrawer</code>). When a user opens any record page (Account, Contact, Opportunity, Case, Lead), the chatbot auto-detects the page context and provides AI-powered answers and actions for that specific record.</p>
-      <p>Every message goes through a <strong>3-callout pipeline</strong>: Salesforce context is built (SOQL), external data is fetched (ERP + BI), then the LLM is called (OpenAI GPT-4o). All HTTP callouts happen <em>before</em> any DML to comply with Salesforce's callout-before-DML governor restriction. Users can optionally attach image, PDF, or text files for analysis in the same turn.</p>
+      <p>Every message goes through a callout pipeline: Salesforce context is built (SOQL), external data is fetched (ERP + BI), then the LLM is called (OpenAI GPT-4o) — up to <strong>4 HTTP callouts</strong> total, since Account <em>summary</em> turns add one more OpenAI <strong>web-search</strong> callout that fetches recent company news (rendered as <strong>"Results from the Web"</strong>). All HTTP callouts happen <em>before</em> any DML to comply with Salesforce's callout-before-DML governor restriction. Users can optionally attach image, PDF, or text files for analysis in the same turn.</p>
       <p style="margin-bottom:0">The LLM responds with one of <strong>10 structured JSON response types</strong> — rendered by dedicated LWC child components for rich visual output: KPI cards, charts, comparison tables, timelines, alerts, record summaries, record lists, and record action confirmation cards. A scheduled Apex batch also delivers a weekly email digest per rep with AI-generated account health insights.</p>
     </div>
     <div class="feature-grid">
       <div class="feature-card fc-blue">
         <div class="fc-icon">🖥️</div>
-        <div class="fc-title">Frontend — 10 LWC Components</div>
-        <div class="fc-desc"><code class="inline">chatbotShell</code> owns all state. <code class="inline">responseRenderer</code> routes to the correct visual component by <code class="inline">responseType</code>. <code class="inline">chatbotDrawer</code> provides a floating FAB for non-utility-bar pages.</div>
+        <div class="fc-title">Frontend — 12 LWC Components</div>
+        <div class="fc-desc"><code class="inline">chatbotShell</code> owns all state. <code class="inline">responseRenderer</code> routes to the correct visual component by <code class="inline">responseType</code>. <code class="inline">chatbotDrawer</code> provides a floating FAB for non-utility-bar pages. <code class="inline">activityTimeline</code> renders a horizontal Tasks+Events timeline.</div>
       </div>
       <div class="feature-card fc-purple">
         <div class="fc-icon">⚙️</div>
-        <div class="fc-title">Backend — 9 Apex Classes</div>
-        <div class="fc-desc"><code class="inline">ChatbotController</code> is the <code class="inline">@AuraEnabled</code> entry point. All 3 callouts (ERP, BI, OpenAI) complete before any DML. File attachments serialized to JSON and passed end-to-end. <code class="inline">DigestBatch</code> + <code class="inline">DigestScheduler</code> deliver weekly account-health emails.</div>
+        <div class="fc-title">Backend — 11 Apex Classes</div>
+        <div class="fc-desc"><code class="inline">ChatbotController</code> is the <code class="inline">@AuraEnabled</code> entry point. Up to 4 callouts (ERP, BI, optional Web search, OpenAI) complete before any DML. <code class="inline">DigestBatch</code> + <code class="inline">DigestScheduler</code> deliver weekly account-health emails.</div>
       </div>
       <div class="feature-card fc-teal">
         <div class="fc-icon">🤖</div>
         <div class="fc-title">AI + External Data</div>
-        <div class="fc-desc">OpenAI GPT-4o via Named Credential. BI data from AWS Redshift via Python FastAPI. ERP data via HTTP template. Multimodal messages for image/PDF/text attachments.</div>
+        <div class="fc-desc">OpenAI GPT-4o via Named Credential — including a <strong>web-search model</strong> (<code class="inline">gpt-4o-search-preview</code>) for grounded company news. BI data from AWS Redshift via Python FastAPI. ERP via HTTP template. Multimodal messages for image/PDF/text attachments.</div>
       </div>
     </div>
   </section>
@@ -706,7 +708,7 @@
         <text x="607" y="407" text-anchor="middle" font-size="9"    fill="rgba(255,255,255,.85)">Lead · Task · Order · Contract</text>
 
         <rect x="515" y="426" width="185" height="28" rx="6" fill="#fef3c7" stroke="#fcd34d" stroke-width="1"/>
-        <text x="607" y="444" text-anchor="middle" font-size="8.5" fill="#92400e" font-weight="700">Max 3 HTTP callouts per transaction</text>
+        <text x="607" y="444" text-anchor="middle" font-size="8.5" fill="#92400e" font-weight="700">Up to 4 callouts (ERP·BI·Web·OpenAI)</text>
 
         <!-- ═ STORAGE ═ -->
         <rect x="748" y="68"  width="205" height="46" rx="7" fill="#166534"/>
@@ -786,7 +788,7 @@
         <text x="830" y="574" font-size="9" fill="#444">Config / optional</text>
 
         <text x="30"  y="600" font-size="9" fill="#666">🟦 LWC &nbsp;&nbsp; 🟪 Apex &nbsp;&nbsp; 🟧 External Services &nbsp;&nbsp; 🟩 Storage / Config</text>
-        <text x="30"  y="616" font-size="8.5" fill="#888">Callout order: ContextBuilderService (ERP #1 + BI #2) → LLMService (OpenAI #3) → getOrCreateSession() DML → saveChatMessage() DML</text>
+        <text x="30"  y="616" font-size="8.5" fill="#888">Callout order: ContextBuilderService (ERP #1 + BI #2 + optional Web #3) → LLMService (OpenAI #4) → getOrCreateSession() DML → saveChatMessage() DML</text>
       </svg>
     </div>
   </section>
@@ -834,8 +836,8 @@
         <div class="step">
           <div class="step-num" style="background:#10a37f;color:#fff">6</div>
           <div class="step-body">
-            <strong>LLMService.chat() — HTTP callout 3</strong>
-            <span>POST to <code class="inline">callout:OpenAI_GPT/v1/chat/completions</code>. Builds a multimodal messages array: system prompt (10 response schemas + 18 rules), context JSON, conversation history, user text message, and optional image/PDF/text attachment block. Model: GPT-4o. <code class="inline">max_completion_tokens</code> from <code class="inline">AI_Config__mdt</code> (must be ≥ 4096). 429 rate limit triggers one retry.</span>
+            <strong>LLMService.chat() — final HTTP callout</strong>
+            <span>POST to <code class="inline">callout:OpenAI_GPT/v1/chat/completions</code>. Builds a multimodal messages array: system prompt (10 response schemas + 19 rules), context JSON (incl. <code class="inline">webData</code> when present), conversation history, user text message, and optional image/PDF/text attachment block. Model: GPT-4o. <code class="inline">max_completion_tokens</code> from <code class="inline">AI_Config__mdt</code> (must be ≥ 4096). 429 rate limit triggers one retry. <strong>Note:</strong> on Account summary-intent turns, <code class="inline">WebService.getCompanyOverview()</code> first makes a separate web-search callout (<code class="inline">gpt-4o-search-preview</code>) to fetch recent company news — grounded results land in <code class="inline">data.overview</code> (Rule 19) and render as "Results from the Web".</span>
           </div>
         </div>
         <div class="step">
@@ -868,11 +870,13 @@
         <span class="co-arrow">→</span>
         <span class="co-step">② BI callout</span>
         <span class="co-arrow">→</span>
-        <span class="co-step">③ OpenAI callout</span>
+        <span class="co-step">③ Web search (Account summary only)</span>
         <span class="co-arrow">→</span>
-        <span class="co-step">④ getOrCreateSession() DML</span>
+        <span class="co-step">④ OpenAI callout</span>
         <span class="co-arrow">→</span>
-        <span class="co-step">⑤ saveChatMessage() DML</span>
+        <span class="co-step">⑤ getOrCreateSession() DML</span>
+        <span class="co-arrow">→</span>
+        <span class="co-step">⑥ saveChatMessage() DML</span>
       </div>
     </div>
   </section>
@@ -1059,8 +1063,13 @@
             </tr>
             <tr>
               <td><code class="inline">recordSummary</code></td>
-              <td>Full record overview: header badge, KPI bar (colour-coded), sections with items. Items with <code class="inline">recordId</code> render as clickable links that open the record.</td>
+              <td>Full record overview: header badge, KPI bar (colour-coded), sections with items, plus a <strong>"Results from the Web"</strong> block (numbered news cards + per-item Source links) when <code class="inline">data.overview</code> is present. Items with <code class="inline">recordId</code> render as clickable links.</td>
               <td>fires <code class="inline">recordnavigate</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">activityTimeline</code></td>
+              <td>Standalone horizontal activity timeline (Tasks + Events) for Account pages: month-scaled axis, TODAY marker, clustered count nodes with type icons, green engagement-coverage bar, click-to-open popover (in-flow/contained so it stays inside narrow chat panels) listing each activity + source. Placed via App Builder <em>and</em> auto-rendered at the top of an Account <code class="inline">record_summary</code> in chat.</td>
+              <td>props: <code class="inline">recordId</code>, <code class="inline">objectApiName</code>; <code class="inline">@wire</code> getActivityTimeline; navigates via NavigationMixin</td>
             </tr>
           </tbody>
         </table>
@@ -1081,17 +1090,27 @@
             <tr>
               <td><code class="inline">ChatbotController</code></td>
               <td><code class="inline">@AuraEnabled</code> entry point. Enforces callout-before-DML order. Orchestrates context → LLM → persist pipeline.</td>
-              <td><code class="inline">sendMessage(msg, recId, objApi, histJson, attachJson)</code> · <code class="inline">executeRecordAction()</code> · <code class="inline">getConversationHistory()</code> · <code class="inline">clearConversationHistory()</code> · <code class="inline">sendEmail()</code></td>
+              <td><code class="inline">sendMessage(msg, recId, objApi, histJson, attachJson)</code> · <code class="inline">executeRecordAction()</code> · <code class="inline">getConversationHistory()</code> · <code class="inline">clearConversationHistory()</code> · <code class="inline">sendEmail()</code> · <code class="inline">searchRecords()</code> · <code class="inline">getActivityTimeline()</code> <span class="pill p-gray">cacheable</span></td>
             </tr>
             <tr>
               <td><code class="inline">ContextBuilderService</code></td>
-              <td>Assembles full Salesforce context. Dynamic SOQL all fields. Related queries per object type. Calls ERP + BI services.</td>
-              <td><code class="inline">buildContext()</code> · <code class="inline">querySalesforceRecord()</code> · <code class="inline">queryRelatedRecords()</code> · <code class="inline">extractExternalId()</code></td>
+              <td>Assembles full Salesforce context. Dynamic SOQL all fields. Related queries per object type. Calls ERP + BI services, and (on Account summary-intent turns) the Web service.</td>
+              <td><code class="inline">buildContext(recId, objApi, userMessage)</code> · <code class="inline">querySalesforceRecord()</code> · <code class="inline">queryRelatedRecords()</code> · <code class="inline">extractExternalId()</code> · <code class="inline">wantsSummary()</code></td>
             </tr>
             <tr>
               <td><code class="inline">LLMService</code></td>
-              <td>Builds <code class="inline">List&lt;Map&lt;String,Object&gt;&gt;</code> messages with system prompt (10 schemas + 18 rules), context JSON, history, user text, and optional image/PDF/text attachment block. Calls OpenAI. Handles 429 retry and <code class="inline">finish_reason:length</code> error.</td>
+              <td>Builds <code class="inline">List&lt;Map&lt;String,Object&gt;&gt;</code> messages with system prompt (10 schemas + 19 rules — incl. Rule 19 "Results from the Web" grounding), context JSON, history, user text, and optional image/PDF/text attachment block. Calls OpenAI. Handles 429 retry and <code class="inline">finish_reason:length</code> error.</td>
               <td><code class="inline">chat(history, message, context, attachmentJson)</code> · <code class="inline">executeRequest()</code> · <code class="inline">parseSuccessResponse()</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">WebService</code></td>
+              <td>Fetches a grounded company-news feed via OpenAI's web-search model (<code class="inline">gpt-4o-search-preview</code>), reusing the <code class="inline">OpenAI_GPT</code> Named Credential + <code class="inline">ApiKey__c</code>. Parses <code class="inline">url_citation</code> annotations into sources. Defensive — never throws (<code class="inline">{available:false}</code> on any error). No separate vendor/key.</td>
+              <td><code class="inline">getCompanyOverview(name, website, location)</code></td>
+            </tr>
+            <tr>
+              <td><code class="inline">TimelineService</code></td>
+              <td>Returns a chronological Task+Event activity feed for an Account (for <code class="inline">activityTimeline</code>). Dynamic, org-safe <strong>source</strong> detection (Salesforce / Gong / SalesLoft) — managed fields referenced only when present. Capped per object with a <code class="inline">truncated</code> flag.</td>
+              <td><code class="inline">getActivityTimeline(recordId)</code></td>
             </tr>
             <tr>
               <td><code class="inline">ChatbotResponseDTO</code></td>
@@ -1173,7 +1192,7 @@
             <tr>
               <td><span class="pill p-green">record_summary</span></td>
               <td><code class="inline">recordSummary</code></td>
-              <td>Full record overview with KPI bar and sections. Triggered by "Summarize this record", "overview", "review"</td>
+              <td>Full record overview with KPI bar and sections. Triggered by "Summarize this record", "overview", "review". For an <strong>Account</strong>, also includes a "Results from the Web" news block (<code class="inline">data.overview</code>) and renders the <code class="inline">activityTimeline</code> at the top.</td>
             </tr>
             <tr>
               <td><span class="pill p-red">record_action</span></td>
@@ -1262,7 +1281,7 @@
             <tr>
               <td><code class="inline">OpenAI_GPT</code></td>
               <td><code class="inline">https://api.openai.com</code></td>
-              <td>LLMService → <code class="inline">/v1/chat/completions</code></td>
+              <td>LLMService → <code class="inline">/v1/chat/completions</code> · WebService → same endpoint with <code class="inline">gpt-4o-search-preview</code> (company news)</td>
               <td>Bearer token (API key from AI_Config__mdt)</td>
             </tr>
             <tr>
@@ -1334,8 +1353,8 @@
         <div class="constraint-item">
           <span class="constraint-icon">🔢</span>
           <div class="constraint-body">
-            <strong>Max 3 HTTP callouts per transaction</strong>
-            <span>ERP (1) + BI (2) + OpenAI (3) — exactly 3. Cannot add more external calls to <code class="inline">sendMessage()</code>.</span>
+            <strong>Up to 4 HTTP callouts per transaction</strong>
+            <span>ERP (1) + BI (2) + OpenAI (3), plus an optional Web-search callout (4) on Account summary-intent turns. Still well under the 100-callout limit; all precede DML.</span>
           </div>
         </div>
         <div class="constraint-item">
@@ -1381,6 +1400,20 @@
           <div class="constraint-body">
             <strong>Utility bar FlexiPage cannot be deployed via CLI</strong>
             <span>Both <code class="inline">AI_Assistant_UtilityBar.flexipage-meta.xml</code> and <code class="inline">AI_Assistant.app-meta.xml</code> are in <code class="inline">.forceignore</code>. Configure via Setup → App Manager UI.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">🔑</span>
+          <div class="constraint-body">
+            <strong><code class="inline">webservice</code> is a reserved Apex keyword</strong>
+            <span>Apex identifiers are case-insensitive, so a local variable named <code class="inline">webService</code> fails to compile ("Unexpected token"). Use <code class="inline">webSvc</code>.</span>
+          </div>
+        </div>
+        <div class="constraint-item">
+          <span class="constraint-icon">🌐</span>
+          <div class="constraint-body">
+            <strong>Org-safe source detection</strong>
+            <span><code class="inline">TimelineService</code> builds its SOQL field list dynamically via <code class="inline">Schema</code> describe, referencing <code class="inline">Gong__*</code>/<code class="inline">SalesLoft1__*</code> fields only when present — deploys everywhere; lights up real sources only where those packages exist.</span>
           </div>
         </div>
         <div class="constraint-item">

@@ -27,6 +27,36 @@
         </div>
     </template>
 
+    <!-- Results from the Web (internet-sourced, only present when webData was available) -->
+    <template if:true={hasOverview}>
+        <div class="rs-web">
+            <h4 class="rs-section-title">{overviewTitle}</h4>
+            <template for:each={overviewResults} for:item="result">
+                <div key={result.key} class="rs-web-item">
+                    <p class="rs-web-text">
+                        <span class="rs-web-num">{result.number}</span> {result.text}
+                        <template if:true={result.hasUrl}>
+                            <a
+                                class="rs-web-source"
+                                href={result.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                Source
+                                <lightning-icon
+                                    icon-name="utility:new_window"
+                                    size="xx-small"
+                                    alternative-text="Open source"
+                                    class="rs-web-source-icon"
+                                ></lightning-icon>
+                            </a>
+                        </template>
+                    </p>
+                </div>
+            </template>
+        </div>
+    </template>
+
     <!-- Sections (empty sections are filtered out in JS) -->
     <div class="rs-sections">
         <template for:each={sections} for:item="section">

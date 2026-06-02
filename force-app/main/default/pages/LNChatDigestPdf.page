@@ -1,0 +1,80 @@
+<apex:page controller="LNChatDigestPdfController"
+           renderAs="pdf"
+           showHeader="false"
+           sidebar="false"
+           standardStylesheets="false"
+           applyHtmlTag="false"
+           applyBodyTag="false"
+           contentType="application/pdf#Account_Digest.pdf">
+<html>
+<head>
+<style type="text/css">
+    @page { margin: 1.6cm; }
+    body { font-family: Arial, "Helvetica", sans-serif; color: #3e3e3c; font-size: 12px; }
+    h1 { color: #0176d3; font-size: 20px; margin: 0 0 2px; }
+    .date { color: #706e6b; font-size: 11px; margin: 0 0 14px; }
+    .intro { font-size: 12px; margin: 0 0 16px; }
+    .insights {
+        background: #f0f6ff;
+        border-left: 4px solid #0176d3;
+        padding: 12px 14px;
+        margin-bottom: 20px;
+    }
+    .insights pre {
+        white-space: pre-wrap;
+        font-family: Arial, "Helvetica", sans-serif;
+        font-size: 12px;
+        margin: 0;
+        color: #3e3e3c;
+    }
+    h2 { font-size: 14px; margin: 0 0 8px; color: #181818; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th {
+        background: #f3f3f3;
+        text-align: left;
+        padding: 7px 10px;
+        border-bottom: 1px solid #ddd;
+        font-size: 11px;
+    }
+    td { padding: 7px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+    .dot { font-size: 13px; font-weight: bold; }
+    .footer { margin-top: 28px; font-size: 9px; color: #b0adab; }
+</style>
+</head>
+<body>
+    <h1>Account Digest</h1>
+    <p class="date">{!digestDate}</p>
+    <p class="intro">Hi {!repName}, here&#39;s your account health summary for this week.</p>
+
+    <apex:outputPanel rendered="{!hasInsights}" layout="block">
+        <div class="insights"><pre>{!insights}</pre></div>
+    </apex:outputPanel>
+
+    <h2>Your Accounts</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th>Open Opportunity</th>
+                <th>Tasks</th>
+                <th>Cases</th>
+                <th>Last Activity</th>
+            </tr>
+        </thead>
+        <tbody>
+            <apex:repeat value="{!rows}" var="a">
+                <tr>
+                    <td><span class="dot" style="color:{!a['scoreColor']}">&#9679;</span>&#160;{!a['name']}</td>
+                    <td>{!a['nearestOpp']}</td>
+                    <td>{!a['overdueTaskCount']} overdue</td>
+                    <td>{!a['openCaseCount']} cases</td>
+                    <td>{!a['daysSinceActivity']}d ago</td>
+                </tr>
+            </apex:repeat>
+        </tbody>
+    </table>
+
+    <p class="footer">Sent by AI Assistant &#183; Internal digest</p>
+</body>
+</html>
+</apex:page>
